@@ -8,6 +8,7 @@ This register separates architectural direction from delivered behavior.
 | Documentation | Confirmed | VitePress |
 | Frontend architecture | Confirmed direction | Multiple Nuxt applications; shared authentication is planned |
 | Backend architecture | Confirmed | .NET multi-service architecture |
+| Application structure | Confirmed direction | Clean Architecture per business service; feature-based frontend boundaries (see [conventions](./conventions)) |
 | Authorization model | Confirmed direction | Scoped RBAC; no generic ABAC engine |
 | Company model | Planned | People, departments, cross-department teams, and managers; managers separate from permission roles |
 | Company application path | Scaffold configuration | `/company/` base path and development proxy configured in the frontend scaffold; production prefix-preserving routing contract documented but not deployed |

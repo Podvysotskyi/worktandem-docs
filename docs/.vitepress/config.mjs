@@ -15,7 +15,8 @@ export default defineConfig({
       ] },
       { text: 'Architecture', items: [
         { text: 'Overview', link: '/architecture/overview' },
-        { text: 'Decisions', link: '/architecture/decisions' }
+        { text: 'Decisions', link: '/architecture/decisions' },
+        { text: 'Conventions', link: '/architecture/conventions' }
       ] }
     ],
     socialLinks: [
