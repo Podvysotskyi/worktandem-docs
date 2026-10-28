@@ -20,11 +20,19 @@ and managers. Management relationships are distinct from authorization roles:
 being a manager must not silently confer arbitrary permissions. Scope and role
 semantics should be documented alongside the eventual API and server-side enforcement.
 
+## Frontend scaffold routing (pending review)
+
+The frontend scaffold configures the company application at `/company/` and a
+main-app development proxy for that prefix. Its production routing contract
+requires a same-origin reverse proxy that preserves `/company/`; production
+routing is not deployed by the scaffold. These changes remain pending review,
+not capabilities already released on the default branch.
+
 ## Proposed, not delivered
 
 The following are candidates, not installed infrastructure or implemented features:
 
-- Same-origin application paths such as `/company` and `/crm`.
+- A future `/crm` application path; it is not implemented by the scaffold.
 - An identity provider for shared authentication; provider and session design are undecided.
 - PostgreSQL for persistence, RabbitMQ for messaging, SignalR for real-time delivery,
   and Hangfire for background jobs.

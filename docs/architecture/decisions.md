@@ -10,7 +10,8 @@ This register separates architectural direction from delivered behavior.
 | Backend architecture | Confirmed | .NET multi-service architecture |
 | Authorization model | Confirmed direction | Scoped RBAC; no generic ABAC engine |
 | Company model | Planned | People, departments, cross-department teams, and managers; managers separate from permission roles |
-| Same-origin paths | Proposed | Evaluate `/company` and `/crm`; no routing contract yet |
+| Company application path | Scaffold pending review | `/company/` base path and development proxy configured in the frontend scaffold; production prefix-preserving routing contract documented but not deployed |
+| CRM application path | Proposed | A future `/crm` path is not implemented by the scaffold |
 | Identity provider | Open | Select provider and define session/authentication integration |
 | Persistence and messaging | Proposed | Evaluate PostgreSQL and RabbitMQ |
 | Real-time and background jobs | Proposed | Evaluate SignalR and Hangfire |
