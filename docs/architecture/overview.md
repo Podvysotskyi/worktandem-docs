@@ -20,13 +20,13 @@ and managers. Management relationships are distinct from authorization roles:
 being a manager must not silently confer arbitrary permissions. Scope and role
 semantics should be documented alongside the eventual API and server-side enforcement.
 
-## Frontend scaffold routing (pending review)
+## Frontend scaffold configuration
 
 The frontend scaffold configures the company application at `/company/` and a
 main-app development proxy for that prefix. Its production routing contract
 requires a same-origin reverse proxy that preserves `/company/`; production
-routing is not deployed by the scaffold. These changes remain pending review,
-not capabilities already released on the default branch.
+routing is not deployed by the scaffold. This configuration is not evidence of
+a production deployment or implemented authentication.
 
 ## Proposed, not delivered
 
