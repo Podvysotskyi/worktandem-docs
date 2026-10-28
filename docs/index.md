@@ -24,3 +24,7 @@ features:
 
 This repository supplies the documentation scaffold. Architecture pages distinguish
 confirmed direction from proposals and implementation work still to come.
+
+See [Accounts and authentication](./architecture/accounts-and-authentication) for
+the confirmed identity model and [authentication design flows](./design/authentication)
+for current design coverage and pending updates.

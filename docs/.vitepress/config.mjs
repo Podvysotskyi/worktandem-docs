@@ -16,6 +16,8 @@ export default defineConfig({
       { text: 'Architecture', items: [
         { text: 'Overview', link: '/architecture/overview' },
         { text: 'Decisions', link: '/architecture/decisions' },
+        { text: 'Accounts and authentication', link: '/architecture/accounts-and-authentication' },
+        { text: 'Authentication design flows', link: '/design/authentication' },
         { text: 'Conventions', link: '/architecture/conventions' }
       ] }
     ],

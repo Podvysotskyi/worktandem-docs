@@ -20,6 +20,16 @@ and managers. Management relationships are distinct from authorization roles:
 being a manager must not silently confer arbitrary permissions. Scope and role
 semantics should be documented alongside the eventual API and server-side enforcement.
 
+## Accounts, companies, and sign-in
+
+The confirmed [account model](./accounts-and-authentication) supports multiple
+company memberships per Worktandem account, multiple Google identities linked to
+one account (each Google identity unique to one Worktandem account), and multiple
+signed-in Worktandem accounts in one browser. Account and company switching are
+distinct; roles remain company-scoped. Google sign-in is confirmed direction, not
+implemented authentication or enterprise SSO. Session design and the multi-tab
+switching strategy remain open.
+
 ## Frontend scaffold configuration
 
 The frontend scaffold configures the company application at `/company/` and a
@@ -33,7 +43,8 @@ a production deployment or implemented authentication.
 The following are candidates, not installed infrastructure or implemented features:
 
 - A future `/crm` application path; it is not implemented by the scaffold.
-- An identity provider for shared authentication; provider and session design are undecided.
+- Shared-session implementation and multi-tab context design remain undecided, although Google sign-in support is confirmed.
+- Google Workspace directory sync, domain auto-join, and Require Google are research proposals, not adopted features.
 - PostgreSQL for persistence, RabbitMQ for messaging, SignalR for real-time delivery,
   and Hangfire for background jobs.
 
