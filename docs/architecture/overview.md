@@ -59,3 +59,10 @@ enforcement, cross-service transactions, event contracts, or operational guarant
 are claimed here. Record decisions before treating a proposal as a dependency.
 
 See the [decisions](./decisions) page for the compact status register.
+
+## Database design
+
+EF Core code-first and migrations are confirmed direction. The [database specification](../database/overview)
+describes proposed service ownership, entity fields, relationships and integrity rules.
+It separates confirmed product requirements from provider/schema decisions still open;
+no entities or migrations are implemented by that specification.

@@ -17,6 +17,8 @@ This register separates architectural direction from delivered behavior.
 | Accounts and memberships | Confirmed direction, not implemented | Many companies per account, many Google identities per account, each Google identity unique to one account, and multiple signed-in accounts with switching; see [ADR-001](#adr-001-multiple-accounts-memberships-and-google-identities) |
 | Multi-tab session context | Open | Isolated request context and stale-request guards required; tab strategy not selected |
 | Workspace directory sync, domain auto-join, Require Google | Research proposals | Not adopted or implemented |
+| Schema management | Confirmed direction, not implemented | EF Core code-first models and migrations; see [database design](../database/overview) |
+| Relational entity model | Proposed | [Service ownership and entity catalog](../database/overview); provider and physical authentication schema remain open |
 | Persistence and messaging | Proposed | Evaluate PostgreSQL and RabbitMQ |
 | Real-time and background jobs | Proposed | Evaluate SignalR and Hangfire |
 | Documentation hosting | Open | No deployment or GitHub Pages publication configured |
