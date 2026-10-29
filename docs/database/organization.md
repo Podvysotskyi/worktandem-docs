@@ -55,13 +55,20 @@ If Company.CurrentApplicationId is stored, use (Company.Id, CurrentApplicationId
 CompanyApplication(CompanyId, Id); null is allowed during initial creation before
 setting the pointer in the same transaction. Resolve insert order without broad
 cascades or a global required circular FK. Current submission is one pointer, not
-an assumption that the highest client-supplied number is authoritative.
+an assumption that the highest client-supplied number is authoritative. Advancing
+the current submission or changing review-relevant company state advances Company.Version.
 
 Proposed checks: SubmissionNumber > 0; reviewed version/outcome must agree with the
 submitted version; require a non-empty applicant-visible rejection reason if P03
 is adopted. Internal notes have separate authorization and are not returned to the
-applicant. Compare expected version and authorize the current platform capability
-before deciding; later grant revocation does not delete historical reviewer evidence.
+applicant. Authorize the current platform capability and match the immutable
+submission/version. Approval additionally requires, atomically with its effects,
+Company.Status = Pending, Company.CurrentApplicationId = the requested submission
+ID, and Company.Version = the expected company version. Use an equivalent
+authoritative current-submission comparison if another representation is selected.
+A superseded submission cannot be approved merely because its own Version matches.
+See the [approval transaction](./integrity#application-approval-transaction).
+Later grant revocation does not delete historical reviewer evidence.
 Scope/deduplicate idempotency by actor + operation + company + payload, not by a
 globally reusable client key alone. Review and outbox/audit persist with approval;
 network notification failure does not reverse an approval.

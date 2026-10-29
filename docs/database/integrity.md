@@ -106,7 +106,16 @@ rather than treating a cache miss or dependency outage as permission.
 ### Application approval transaction
 
 Proposed P03 transaction: validate current operator capability/evidence and exact
-expected submission version; record one terminal ReviewDecision, change company
+expected immutable submission version. In that same Organization transaction,
+require **Company.Status = Pending**, **Company.CurrentApplicationId = the requested
+submission ID**, and **Company.Version = the expected company version** before any
+approval effects. If a different current-submission representation is selected,
+enforce the equivalent authoritative current-submission comparison. These guards
+must participate in the atomic state transition, not only an earlier read/check.
+Changing the current submission or review-relevant company state advances
+Company.Version; a matching old submission's own immutable version is insufficient.
+
+Only after those guards succeed, record one terminal ReviewDecision, change company
 state, activate applicant membership/Owner grant on approval, and persist audit plus
 required notification intent. Use unique application decision and company/account
 membership constraints with version checks. Pending candidate has no active owner
@@ -183,7 +192,7 @@ These are planned tests, not checks already executed by this documentation chang
 | Area | Required negative/concurrency coverage |
 | --- | --- |
 | Google identities | Duplicate issuer/subject across accounts and a second Google on one account both fail under races; active account cannot lose its only usable login; email collisions do not merge accounts |
-| Approval | Pending applicant cannot read/write business/member/invite data; two decisions on one submission have one winner; stale submission cannot activate owner; rejection creates no active membership |
+| Approval | Pending applicant cannot read/write business/member/invite data; two decisions have one winner; non-Pending company, mismatched Company.Version or superseded prior submission fails with no approval/owner effects even if that prior submission's immutable version still matches; rejection creates no active membership |
 | Platform separation | Company Owner cannot review/grant platform access; forged/stale operator evidence fails; internal notes remain protected |
 | Invitations | In-app/no-company lookup is recipient-authorized with current evidence; wrong account/email and stale/reassigned-email discovery fail; no differing-email OTP or token-only membership |
 | Invite races | Accept versus revoke/resend/expiry has one outcome; terminal/replayed/old-link requests create no grants; exact expiry checked without cleanup dependency |

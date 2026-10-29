@@ -188,5 +188,6 @@ remain open; choosing EF Core does not choose PostgreSQL or ASP.NET Core Identit
 
 The earlier catalog is now revised in this proposal, with unrelated organization/
 RBAC design preserved. Settle the remaining choices, then review the selected logical
-model before generating entities/migrations. PR #3 remains a draft for review;
-documented dispositions are not approval of its full schema or production readiness.
+model before generating entities/migrations. The catalog remains a proposal for
+product/model review; documented dispositions are not approval of its full schema
+or production readiness.

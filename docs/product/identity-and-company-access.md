@@ -26,7 +26,9 @@ Context: [current account model](../architecture/accounts-and-authentication),
 [desktop design coverage](../design/authentication), and
 [database design draft PR #3](https://github.com/Podvysotskyi/worktandem-docs/pull/3)
 at commit `493443ed1a414d4d567f88712008d43232ca35ff`.
-PR #3 is an open draft, not an approved or merged database definition.
+That original PR #3 snapshot was reviewed as an open draft, not an approved
+database definition. Publishing its documentation does not implement or approve
+the proposed schema or unresolved product defaults.
 
 ## Confirmed decisions
 
@@ -250,7 +252,13 @@ prior submissions and operator decisions. Applicant-visible reasons and internal
 review notes are separate fields with separate access.
 
 Concurrent decisions use expected-version checks: two reviewers cannot independently
-approve/reject different snapshots of the same Pending version. A retry of the
+approve/reject different snapshots of the same Pending version. Approval atomically
+requires that the company is still Pending, the requested application is still its
+current submission, and the company's concurrency version matches the expected
+version, in addition to operator authorization and the immutable submission/version
+check. A newer current submission or changed company version prevents approval of
+the old submission even when that old submission's own version still matches.
+A retry of the
 same decision returns the original result. Do not let edits silently change an
 application being approved. Self-review, review SLA, edit-while-Pending rules,
 notification channels and resubmission limits remain O03 decisions.
@@ -590,7 +598,7 @@ that any security or product behavior works.
 | T05 | Pending owner candidate directly calls business/invite/member-write APIs | Denied despite frontend routing or claimed owner role (P03) |
 | T06 | Pending C plus approved B on same account | B unaffected; C denied (P03) |
 | T07 | Company admin, ordinary member or forged role calls review API | Denied without explicit platform grant |
-| T08 | Two reviewers decide same version; stale form changes during review | One decision; stale version rejected; owner activated once |
+| T08 | Two reviewers decide same version; company changes state/version or a newer submission replaces the requested one | One decision; non-Pending, mismatched company version or superseded submission rejected without owner activation even if the old immutable submission version matches |
 | T09 | Rejection/edit/resubmission and failed notification delivery | History/reason retained; new reviewed version; no rollback or duplicate effects |
 | T10 | Existing no-membership account receives invite | Pending inbox reachable; no membership until explicit acceptance |
 | T11 | Brand-new invitee joins approved company | No duplicate company form under P01; matching identity required |
