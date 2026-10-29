@@ -19,6 +19,10 @@ export default defineConfig({
         { text: 'Accounts and authentication', link: '/architecture/accounts-and-authentication' },
         { text: 'Authentication design flows', link: '/design/authentication' },
         { text: 'Conventions', link: '/architecture/conventions' }
+      ] },
+      { text: 'Product specifications', items: [
+        { text: 'Identity, onboarding and invitations', link: '/product/identity-and-company-access' },
+        { text: 'Database proposal alignment review', link: '/database/identity-alignment-review' }
       ] }
     ],
     socialLinks: [
