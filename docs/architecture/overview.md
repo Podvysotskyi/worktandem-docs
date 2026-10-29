@@ -23,10 +23,13 @@ semantics should be documented alongside the eventual API and server-side enforc
 ## Accounts, companies, and sign-in
 
 The confirmed [account model](./accounts-and-authentication) supports multiple
-company memberships per Worktandem account, multiple Google identities linked to
-one account (each Google identity unique to one Worktandem account), and multiple
+company memberships per Worktandem account, at most one Google identity per account
+(exactly one usable Google login for an active Google-only account; each identity
+unique to one Worktandem account), and multiple
 signed-in Worktandem accounts in one browser. Account and company switching are
-distinct; roles remain company-scoped. Google-only sign-in is the present direction;
+distinct; roles remain company-scoped. No second-Google linking flow is included;
+replacement/recovery and future-provider cardinality remain open.
+Google-only sign-in is the present direction;
 no local email/password flow is planned for this scope. New self-service registration
 creates a Pending company for manual platform review. A separate Nuxt platform-admin
 application is planned. Existing users must see pending invitations in the app,

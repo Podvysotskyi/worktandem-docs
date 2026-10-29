@@ -5,31 +5,37 @@
 The canonical [identity, company onboarding and invitations specification](../product/identity-and-company-access)
 defines current rules, proposed defaults, logical data requirements and open decisions.
 This page summarizes the account model. [ADR-001](./decisions#adr-001-multiple-accounts-memberships-and-google-identities)
-records the original multi-account decision;
+records the original multi-account decision, including superseded Google multiplicity;
 [ADR-002](./decisions#adr-002-google-only-onboarding-invitations-and-platform-review)
-records the newer onboarding and administration direction.
+records the onboarding and administration direction, and
+[ADR-003](./decisions#adr-003-one-google-identity-per-worktandem-account) records
+the current one-Google-identity rule.
 
 ## Identity model
 
-- One Worktandem account can have many company memberships and many linked Google
-  identities. Each validated Google issuer + subject belongs to only one account.
+- One Worktandem account can have many company memberships and at most one Google
+  identity. An active Google-only account has exactly one usable Google login.
+  Each validated Google issuer + subject belongs to only one Worktandem account.
 - Google-only sign-in/registration is the present scope. No local email/password
   signup, login, password setup or password recovery. Other providers are future scope.
 - Email is mutable recipient/profile evidence, not an account or external-identity key.
   Never merge, transfer or link accounts merely because emails match.
-- Linking requires deliberate proof of the target account and the Google identity.
-  A Google identity already belonging elsewhere is a conflict, not an automatic merge.
+- Do not add a second Google identity or transfer one from another account. Google
+  replacement/recovery needs a separately agreed policy; no unrestricted unlink/relink.
+  Future-provider cardinality and linking rules remain open.
 
 See the canonical [identity rules](../product/identity-and-company-access#account-and-identity-behavior).
-Google-only recovery must use an established eligible identity or Google's recovery;
-Worktandem cannot reset Google credentials. Operator-assisted recovery remains open.
+Google-only recovery points to Google's recovery; Worktandem cannot reset Google
+credentials or remove the only usable login from an active account. Identity
+replacement and operator-assisted recovery remain open.
 
 ## Two distinct switches
 
 **Switch account** changes the actor and may add another independently signed-in
 Worktandem account. **Switch company** changes tenant context for that actor and
-must revalidate its membership. **Link Google identity** changes the sign-in methods
-of the deliberately selected account. These are three separate actions.
+must revalidate its membership. Authenticating another Google identity resolves or
+creates that identity's own Worktandem account; it does not attach it to the current
+account. There is no add-second-Google-identity action.
 
 A browser can hold multiple account sessions. Roles never transfer between companies
 or accounts. No globally mutable `Account.CurrentCompanyId` is an access authority.
@@ -59,7 +65,9 @@ A separate invitation-join path without duplicate company creation is proposed, 
 yet confirmed. A company administrator can invite any email; accepting requires the
 currently authenticated Google identity's verified email to match the invited
 address. Existing users must see and accept pending invitations in the app.
-No different-email OTP route is available.
+On mismatch, switch to the matching identity's Worktandem account or start that
+identity's own registration if it is new. No different-email OTP route, second
+Google identity attachment or email-based account merge is available.
 
 Google response validation must check signature, issuer, audience, expiry and
 flow-bound CSRF/replay defenses. See

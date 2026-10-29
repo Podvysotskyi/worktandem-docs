@@ -33,14 +33,14 @@ PR #3 is an open draft, not an approved or merged database definition.
 | ID | Decision | Consequence |
 | --- | --- | --- |
 | C01 | Google-only sign-in and registration for the present scope | No local email/password login, signup, password setup or password-recovery flow; other identity providers are future scope |
-| C02 | One Worktandem account may link many Google identities; one Google identity belongs to one account | Use validated stable issuer + subject, never email, to identify the external identity |
+| C02 | One Worktandem account has at most one Google identity; one Google identity belongs to one account | An active Google-only account has exactly one usable Google login; identify it by validated stable issuer + subject, never email; future-provider cardinality remains open |
 | C03 | One account may have many company memberships | Company roles and access stay with the relevant membership |
-| C04 | Many Worktandem accounts may remain signed in within one browser | Account switching, company switching and linking a Google identity are separate actions |
-| C05 | Linking requires deliberate proof of the current account and the identity being linked | Matching email never automatically links, merges or transfers accounts |
+| C04 | Many Worktandem accounts may remain signed in within one browser | Account switching changes actor; company switching changes tenant for that actor; neither attaches another Google identity |
+| C05 | Email matching never automatically associates, merges or transfers accounts | No second-Google linking flow; Google replacement/recovery needs a separately agreed policy |
 | C06 | Company creation is part of new self-service registration | A created company starts Pending and needs manual platform-admin approval before business-product access |
 | C07 | Platform administration has a separate Nuxt application | Worktandem operators are distinct from company administrators; a company-admin role does not grant platform privileges |
 | C08 | Company administrators may invite any email address | Company-domain setup is not a mandatory invitation or registration prerequisite |
-| C09 | Acceptance requires a signed-in Google identity whose verified email matches the invited address | A different-email OTP route is excluded; another identity or account must be selected instead |
+| C09 | Acceptance requires a signed-in Google identity whose verified email matches the invited address | A different-email OTP route is excluded; switch to the relevant Worktandem account or authenticate the matching Google identity to resolve/create its own account |
 | C10 | Existing users see and accept pending invitations inside the app | An invitation is discoverable without requiring the user to reopen its email link |
 | C11 | Company-domain configuration is optional and belongs to optional Google API integration | Google Workspace or corporate-email admission is not the platform default |
 | C12 | Authorization uses company-scoped RBAC | A manager title, team, domain or enabled module does not itself grant permission |
@@ -96,32 +96,38 @@ These presentation choices do not establish authentication or RBAC.
 **Confirmed:** a returning Google identity resolves to its existing account through
 canonical validated issuer + case-sensitive subject. Its latest email does not
 select a different account. A new identity is not automatically attached to an
-existing account with the same email.
+existing account with the same email. Each Worktandem account has at most one
+Google identity; an active Google-only account has exactly one usable Google login.
+Multiple company memberships and concurrent Worktandem account sessions remain
+supported. The earlier many-Google-identities-per-account decision is superseded by
+[ADR-003](../architecture/decisions#adr-003-one-google-identity-per-worktandem-account).
 
 Google documents that `sub` remains stable when email changes, and that email is
 not an appropriate identity key. The returned `hd` claim, rather than an email
 suffix or account-chooser hint, is the relevant evidence for Workspace-domain
 membership. See [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect).
 
-**Proposed linking flow:** from account security settings, reauthenticate the target
-account and authenticate the Google identity to add, bound to one deliberate
-operation. An identity already linked here is idempotent success; an identity
-belonging elsewhere is a conflict without exposing that account's details. Do not
-move an identity between accounts or merge accounts without a separate policy.
-Unlink must preserve at least one usable login path and satisfy company policy;
-concurrent unlinks must not remove the final usable method.
+**Current boundary:** do not offer an add-second-Google-identity flow. A different
+Google identity resolves to its own Worktandem account; it must not be attached to
+the current account or transferred from another account. Concurrent enrollment
+must preserve both global issuer/subject ownership and one Google identity per
+account. Reauthenticating the same identity is not adding another sign-in method.
+Do not allow removal of the only Google login and strand an active account.
 
 **Confirmed recovery boundary:** Worktandem cannot reset Google credentials and
 must not introduce local password recovery. **Open:** operator-assisted recovery
-when all Google identities are unavailable, owner recovery and identity transfers.
-Suggested default: no self-service transfer by email; use another already-linked
-identity or Google's own recovery until a separately reviewed process exists.
+when the account's Google identity is unavailable, Google-identity replacement,
+owner recovery and identity transfers. Suggested default: Google's own recovery;
+no email-based transfer or unrestricted unlink/relink. Replacing an identity would
+need a separately reviewed proof, conflict, atomicity and session-revocation policy,
+not permission to hold two Google identities. Cardinality and linking rules for
+future non-Google providers remain open.
 
 ### Mutable email and recipient matching
 
 **Confirmed:** invitation acceptance must match the current verified email of the
 Google identity used for the accepting operation. A historical cached email,
-editable contact email or another linked identity's old email is insufficient.
+editable contact email or another Worktandem account's identity is insufficient.
 
 **Proposed conservative matching:** preserve the original invitation address for
 display; trim surrounding input whitespace and canonicalize the domain using a
@@ -202,8 +208,10 @@ another tenant or auto-join by name, website or email domain.
 **Proposed P01:** joining an existing approved company is a separate onboarding
 path. A new invited user authenticates with the matching Google identity and
 accepts the invitation without creating a duplicate company. An existing account
-accepts into that account after proving the invited identity. Do not attach an
-unlinked Google identity to that account merely because the email matches.
+accepts into the account owning the invited Google identity. If it belongs to a
+different Worktandem account, switch accounts; if it is new, resolve/create its own
+account under the agreed onboarding path. Never attach it as a second Google
+identity or merge accounts merely because emails match.
 
 This exemption from mandatory company creation for invited registration is a
 necessary proposed interpretation, **not a separately confirmed user decision**.
@@ -263,8 +271,8 @@ Never tell the inviter whether the address is already a Worktandem account.
 
 **Proposed discovery:** an authenticated account-level Pending invitations page is
 available before company selection, including for accounts without any memberships.
-Match against sufficiently current, verified email evidence on identities linked
-to that account. Show only actionable invitations to eligible recipient identities;
+Match against sufficiently current, verified email evidence for that account's
+single Google identity. Show only actionable invitations eligible for that identity;
 stale evidence may require Google reauthentication. Listing is not acceptance.
 Apply the eventual O07 policy before revealing invitation detail for uncertain
 third-party mailbox evidence. Do not expose an unauthenticated email-search API.
@@ -281,13 +289,13 @@ These UI details remain proposed; no Penpot or other design changes are made her
 2. Show the intended company and recipient and require an explicit acceptance.
    An email-link GET must not create membership or consume the invitation.
 3. Validate that the current account session has fresh authentication evidence for
-   the Google identity with the invited verified email. Having a matching identity
-   linked somewhere on the account is insufficient if this operation authenticated
-   a different identity.
+   its single Google identity with the invited verified email. A different signed-in
+   Worktandem account's Google identity does not qualify the current account.
 4. On mismatch, explain which address is needed and offer the Google chooser,
-   another already-signed-in Worktandem account or cancellation. Distinguish using
-   another linked identity of this account from switching to another Worktandem
-   account. Do not silently link, transfer an identity or accept into the old account.
+   another already-signed-in Worktandem account or cancellation. Authenticating the
+   matching Google identity resolves its own Worktandem account or starts that
+   account's registration; it does not add a second identity to this account.
+   Do not silently transfer/merge identities or accept into the old account.
 5. Revalidate invitation state, expiry, company status, recipient evidence and
    proposed grants at the server immediately before commit. Optional domain policy
    must honor the confirmed explicit manual invitation exception.
@@ -297,7 +305,9 @@ These UI details remain proposed; no Penpot or other design changes are made her
 
 Steps are proposed implementation requirements for the confirmed matching rule.
 The invite link is a locator/evidence component, not an alternative authentication
-method. In-app acceptance must remain possible under the selected evidence policy.
+method. The authenticated in-app route does not inherently require the email-link
+token. Additional same-address mailbox evidence for non-Gmail/no-`hd` identities
+remains subject to O07; no OTP or other unresolved evidence policy is adopted here.
 
 ### Outcomes, expiry and retries
 
@@ -321,7 +331,7 @@ Final defaults and the status model remain P04/O05 decisions.
 | Replay from another actor | No membership change; generic invalid/unavailable result unless disclosure is authorized |
 | Role deleted, scope changed or inviter loses delegation rights | Revalidate at acceptance; suggested default blocks until an authorized admin reissues/reviews it |
 | Company Pending/suspended/archived | No business membership activation; suggested default rejects acceptance until company becomes eligible |
-| Email mismatch or changed email | No acceptance and no automatic account link; select/prove an eligible identity or request a corrected invitation |
+| Email mismatch or changed email | No acceptance or second-Google linking; switch to the Worktandem account owning the matching identity, register its own account if new, or request a corrected invitation |
 
 For resend, decide whether metadata/role changes require an explicit replacement
 instead of silently modifying the offer. Revocation/acceptance races must have one
@@ -330,8 +340,8 @@ winner; a retry cannot revive a terminal invitation.
 ## Sessions, account switching and authorization
 
 **Confirmed:** switch account changes actor; switch company changes tenant for that
-actor; link identity changes available sign-in methods. None of these actions merges
-accounts or transfers permissions. Sign out current account and sign out all
+actor. Neither action attaches another Google identity, merges accounts or transfers
+permissions. Sign out current account and sign out all
 Worktandem accounts are distinct; neither means signing out of Google itself.
 
 **Proposed request invariant:** every protected business operation resolves a valid
@@ -434,11 +444,12 @@ is actually selected. Sync must not undo an explicit administrator suspension.
 
 **Open O08:** choose the optional domain policy's exact scope, who may grant/revoke
 manual exceptions, how to display them, and recheck/recovery rules. Decide policy
-semantics for existing members, reauthentication, multiple linked identities,
+semantics for existing members, reauthentication, Google-identity replacement,
 domain changes and integration outage/revocation. Suggested default is to evaluate
 validated current-session `hd` for a directory/domain-based path, with a separate
-explicit manual-invitation eligibility path. Merely linking an allowed identity
-does not qualify a different session; neither path grants an RBAC permission.
+explicit manual-invitation eligibility path. A different Worktandem account's
+allowed-domain identity does not qualify the current session; neither path grants
+an RBAC permission.
 
 Also decide what happens if strict enforcement would lock out the final owner.
 Prevent enabling it without an eligible owner/recovery path. An API-consent outage
@@ -455,7 +466,7 @@ are suggested conventions. Provider-owned records must follow the selected libra
 | Record / owner | Proposed information and constraints |
 | --- | --- |
 | Account / Identity | Stable Id, display/contact fields, status, creation/update/version; no authoritative CurrentCompanyId, password, company role or unique-email assumption |
-| ExternalIdentity / Identity | AccountId, provider, canonical Issuer, case-sensitive Subject, observed email/verified/hd, observed/authenticated times, link version; global unique (Issuer, Subject), many identities per account |
+| ExternalIdentity / Identity | AccountId, provider, canonical Issuer, case-sensitive Subject, observed email/verified/hd, observed/authenticated times, association version; global unique (Issuer, Subject), plus Google-scoped uniqueness of AccountId so one account cannot hold two Google identities; future-provider cardinality open |
 | AccountSession / Identity | AccountId, identity/evidence reference, authentication time/assurance, created/expires/revoked times, context/version as selected; no exposed bearer values |
 | PlatformGrant / Identity capability | AccountId, capability, grant/revoke actor/time, status/version; tenant roles cannot create these grants |
 | Company / Organization | Id, display name, status, created/update/version; applicant/owner-candidate relation distinct from activated membership |
@@ -476,6 +487,14 @@ not to Pending applications that intentionally have only a candidate.
 Role-grant scopes and membership references use the same company;
 cross-company role/member references are rejected even when individual IDs exist.
 
+The logical Google uniqueness requirement may map to a Google-specific relation,
+a provider-scoped/filtered unique key or the selected authentication library's
+equivalent. Do not choose physical SQL here, make AccountId globally unique across
+all providers, or generalize a Google-specific rule into one identity per future
+provider without a separate decision. At-most-one uniqueness does not itself
+guarantee a usable login: activation and recovery workflows must preserve exactly
+one usable Google login for an active Google-only account.
+
 ### Consistency and write requirements
 
 - Create Pending company + submission + owner candidate together. Approve company +
@@ -485,7 +504,8 @@ cross-company role/member references are rejected even when individual IDs exist
   Unique membership and identity constraints provide a final concurrency guard.
 - Account/identity proofs cross boundaries through validated contracts; acceptance
   records which proof/version was checked, rather than trusting an arbitrary
-  client identity ID. Define freshness and invalidation for unlink/suspension races.
+  client identity ID. Define freshness and invalidation for any future approved
+  replacement/recovery workflow and for suspension races.
 - Use expected-version checks for review, revoke/resend, policy changes and grants.
   Idempotency keys are bound to actor, company, operation and request payload.
 - Acceptance and revocation/expiry races have one committed outcome. Resending
@@ -522,11 +542,12 @@ inbox even when A has no company. Accept authenticates that identity and creates
 membership only after the same server validation used by the email-link flow.
 For this synthetic third-party email, O07 still determines mailbox-evidence needs.
 
-**Wrong identity:** account A has linked identities with addresses
-`personal@example.test` and `work@example.test`. The invite targets the latter but
-the operation authenticated the former. Show/prove the work identity; do not accept
-using the personal identity merely because both are linked. If the work identity
-belongs to account B, switch to B; do not link it to A or copy B's memberships.
+**Wrong account:** account A uses Google identity `personal@example.test`; separate
+account B uses Google identity `work@example.test`. The invite targets the latter
+while A is active. Switch to B and prove its Google identity; do not accept into A,
+attach B's Google identity to A or copy B's memberships. If the matching Google
+identity has no Worktandem account, start its own account registration under the
+agreed invitation-onboarding policy.
 
 **Other approved membership:** account A applies for new company C while already
 active in approved B. Under P03, C's Pending state denies C's business data while A
@@ -548,10 +569,10 @@ later design work, not a statement that any mockup has been updated:
 | Google entry | Sign-in/register intent, Google chooser, cancel/failure, invalid response, no local password entry |
 | Company form | New/incomplete submission, validation, duplicate hint without tenant disclosure, idempotent submit |
 | Application status | Pending, rejection reason, edit/resubmit, approval, suspension, access to other approved memberships |
-| Invitation inbox | No-company access, empty/loading/error, multiple target identities, expiry, Accept/Decline and unavailable company |
+| Invitation inbox | No-company access, empty/loading/error, target account/Google email, expiry, Accept/Decline and unavailable company |
 | Invitation detail | Email/in-app entry, explicit accept, identity mismatch, account chooser, already member, revoked/expired/replayed |
-| Account/company controls | Distinct switchers, Add account versus Link identity, pending badge, stale session and revoked context |
-| Account security | Linked identities, both-proof linking, conflict, safe unlink, Google recovery boundary |
+| Account/company controls | Distinct switchers, Add Worktandem account with its own Google identity, pending badge, stale session and revoked context; no add-second-Google action |
+| Account security | Single Google identity and recovery guidance; no second-Google linking or unrestricted unlink/relink; replacement policy remains open |
 | Platform admin | Separate operator sign-in/access-denied, review queue/detail, version conflict, approve/reject reason and audit |
 | Optional Google integration | Separate consent, domain verification, policy conflict, denied/revoked scope, owner-lockout prevention |
 
@@ -564,7 +585,7 @@ that any security or product behavior works.
 | --- | --- | --- |
 | T01 | Google-only registration and login; attempt password endpoints | Google path succeeds; local credential/signup/recovery unavailable |
 | T02 | Same issuer/subject with changed email; two identities sharing displayed email | Stable account resolved; no merge or identity transfer |
-| T03 | Two concurrent links to different accounts; concurrent final unlinks | One identity owner; final usable login path preserved |
+| T03 | Concurrent attempts attach one Google identity to different accounts or two Google identities to one account; removal of the only login | Both ownership/cardinality invariants hold under races; active Google-only account is not stranded; no unrestricted replacement path |
 | T04 | Abandon Google/form, retry submission, reload Pending screen | No duplicate company/owner; resumable state under chosen policy |
 | T05 | Pending owner candidate directly calls business/invite/member-write APIs | Denied despite frontend routing or claimed owner role (P03) |
 | T06 | Pending C plus approved B on same account | B unaffected; C denied (P03) |
@@ -573,7 +594,7 @@ that any security or product behavior works.
 | T09 | Rejection/edit/resubmission and failed notification delivery | History/reason retained; new reviewed version; no rollback or duplicate effects |
 | T10 | Existing no-membership account receives invite | Pending inbox reachable; no membership until explicit acceptance |
 | T11 | Brand-new invitee joins approved company | No duplicate company form under P01; matching identity required |
-| T12 | Wrong Google email, another linked identity, another signed-in account | Require correct identity/account; no different-email OTP or auto-link |
+| T12 | Wrong Google email/account; another signed-in account or new matching Google identity | Switch to/resolve the matching identity's own Worktandem account; no second-Google linking, email-based merge or different-email OTP |
 | T13 | Third-party email_verified without hd; stale/reassigned email | Follow agreed O06/O07 evidence policy; no historical-email takeover |
 | T14 | Email-link GET or in-app view; forged invitation/actor ID | No consumption on view; unauthorized lookup/write denied |
 | T15 | Accept from email versus in-app; repeated clicks/replay/concurrent accept | Same invitation state/result; at most one membership/grant set |
@@ -616,12 +637,12 @@ not establish approval of every other proposal in this specification.
 | Before design/schema / O06 | Email normalization, freshness, changed email, mailbox reassignment and collisions | Conservative matching; no aliases/dot/plus equivalence by assumption; identity keys remain stable |
 | Before design/schema / O07 | Google third-party email authority | Explicit current-mailbox evidence policy while retaining same-Google-email rule; no adopted fallback yet |
 | Before optional integration design / O08 | Domain policy, manual eligibility controls, proof, rechecks and directory behavior | C14 manual invitations allowed; retain independent eligibility; sync never overrides suspension; directory auto-join not adopted |
-| Before security implementation / O09 | Removal/suspension, owner transfer/recovery, identity recovery and revocation timing | Preserve final-owner/login safeguards; server enforcement; agree revocation SLA and review-based recovery |
+| Before security implementation / O09 | Removal/suspension, owner transfer/recovery, Google replacement/recovery and revocation timing | Preserve final-owner and single-usable-Google safeguards; no unrestricted unlink/relink; agree proofs, atomicity, revocation SLA and review-based recovery |
 | Before security implementation / O10 | Platform bootstrap, capability grants and MFA/step-up | Explicit reviewed initial grant, minimum privileges, verified assurance and independent recovery |
 | Before session implementation / O11 | Per-tab contexts, session storage, expiry, refresh and cross-app logout | Per-tab selection proposal; server-bound session proof; distinguish current/all-account logout |
 | Before endpoint implementation / O12 | Privacy, account enumeration, rate limits and retention | Non-enumerating public results, per-actor/company/address limits, token-free audit; exact budgets/retention undecided |
 | Before design/schema changes / O13 | Existing design/database draft reconciliation | Follow the linked database review; preserve historical ADR; separately revise PR #3 after decisions; do not imply merge |
-| Future scope / O14 | Other providers, transfers/merges and provider migration | General issuer/subject model; provider-specific matching/assurance decisions before enabling; no local-password inference |
+| Future scope / O14 | Other providers, their cardinality/linking rules, transfers/merges and provider migration | General issuer/subject model; one-Google rule does not decide non-Google cardinality; provider-specific proof/matching/assurance before enabling; no local-password inference |
 | Before migrations / O15 | Physical provider/library, entity mapping and service boundaries | Map these requirements to selected authentication/session library and service-owned EF models; do not hand-roll duplicate credential tables |
 
 ## Existing-document reconciliation
@@ -632,10 +653,10 @@ draft itself remains unchanged; its required changes are recorded in the separat
 
 | Source at start of this review | Gap against latest confirmed direction | Disposition |
 | --- | --- | --- |
-| Accounts and authentication | Google described as a method; optional local-credential language; generic onboarding; domain features only research | Replaced with current summary and links to this specification; email-authority policy remains explicit and open |
+| Accounts and authentication | Google described as a method; optional local-credential and many-Google language; generic onboarding; domain features only research | Replaced with current one-Google summary and links to this specification; email-authority policy remains explicit and open |
 | Authentication design flows | No full company application/operator-review state inventory; only limited pending-invite mention | Documentation inventory updated; actual design-file work remains separate |
-| Decision register / ADR-001 | Multi-account core remains valid; newer onboarding/admin/integration choices absent | ADR-002 records current rules; ADR-001 historical text retained with partial-supersession status |
-| Database PR #3: Identity | Optional LocalCredential/challenges, open login-email uniqueness | Remove current-scope local-password implication; keep stable identity and provider-managed session requirements |
+| Decision register / ADR-001 | Multi-company and concurrent-account rules remain valid; many-Google cardinality superseded | ADR-002 records onboarding/admin rules; ADR-003 records one-Google cardinality; historical text retained with explicit supersession |
+| Database PR #3: Identity | Optional LocalCredential/challenges, open login-email uniqueness, obsolete many-Google cardinality | Remove local-password implication and multiple-Google support; retain stable identity ownership and add Google-scoped account uniqueness without deciding future-provider cardinality |
 | Database PR #3: Organization | Company Active/Suspended/Archived only; no application/review/owner candidate; no Declined state | Align lifecycle and invitation outcomes after agreement; choose physical naming deliberately |
 | Database PR #3: invitation grants | Proposal defers initial elevated role assignment; invite fields omit final role/evidence policy | Reconcile with O05 and accepted grant default; do not silently treat P04 as approved |
 | Database PR #3: optional domains | No connection/domain catalog yet; Require Google research wording | Keep optional integration separately scoped; domain policy/directory tables only after their design decisions |

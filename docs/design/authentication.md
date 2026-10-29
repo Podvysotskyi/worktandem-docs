@@ -20,8 +20,8 @@ for detailed states and future verification.
 | New self-service company | Company form, Pending status and manual approval gate; exact fields and rejection/resubmission defaults remain proposed |
 | Invitation join | Matching verified Google email, explicit acceptance, in-app pending invitation access including no-company accounts; no different-email OTP |
 | Invitee onboarding | Separate join path without duplicate company creation is proposed; do not treat it as separately approved |
-| Account versus company switching | Distinct controls; Add account is distinct from Link Google identity; stale context and expired-session states |
-| Linked identities | Both-proof linking, identity-already-linked conflict and final-login-method safeguard |
+| Account versus company switching | Distinct controls; Add Worktandem account authenticates that account's own Google identity; stale context and expired-session states; no second-Google linking action |
+| Account security | Show the single Google identity and Google recovery guidance; prevent removing the only usable login; Google replacement policy remains open |
 | Platform administration | Separate Nuxt operator app; explicit platform permissions, review queue/detail and reason/version-conflict states |
 | Optional Google integration | Separate API consent and optional domains; manual outside-domain invitations and subsequent permitted member access remain available |
 
@@ -34,7 +34,8 @@ for detailed states and future verification.
 - Show Pending/invitation/account screens without business access. Other approved
   company access remaining available while one company is Pending is a proposed
   invariant awaiting confirmation.
-- Preserve explicit identity/account choice on mismatch; no automatic linking/merge.
+- On invitation mismatch, switch to the matching Google identity's Worktandem account
+  or start its own registration if new; no second-Google attachment or email-based merge.
 - Distinguish sign out current versus all Worktandem accounts; avoid promising global
   cross-tab switching until session mechanics are selected.
 - Show manual outside-domain eligibility separately from directory membership if
@@ -45,6 +46,7 @@ for detailed states and future verification.
 ## Review checklist
 
 Review against [ADR-002](../architecture/decisions#adr-002-google-only-onboarding-invitations-and-platform-review),
+[ADR-003](../architecture/decisions#adr-003-one-google-identity-per-worktandem-account),
 the canonical specification and its decision inventory. Confirm loading, empty,
 error, declined/revoked/expired, already-member, wrong-identity and suspension states.
 Proposed expiry, decline, role defaults and form requirements need product agreement.

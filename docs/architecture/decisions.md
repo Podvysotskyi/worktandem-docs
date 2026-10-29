@@ -18,7 +18,8 @@ This register separates architectural direction from delivered behavior.
 | Company onboarding | Confirmed direction, not implemented | New self-service registration includes company form; company Pending until manual platform approval |
 | Invitations | Confirmed direction, not implemented | Any recipient email; acceptance uses matching verified Google email; existing users see pending invites in app; no different-email OTP |
 | Platform administration | Confirmed direction, not implemented | Separate Nuxt operator app and explicit platform grants, distinct from company-admin roles |
-| Accounts and memberships | Confirmed direction, not implemented | Many companies per account, many Google identities per account, each Google identity unique to one account, and multiple signed-in accounts with switching; see [ADR-001](#adr-001-multiple-accounts-memberships-and-google-identities) |
+| Accounts and memberships | Confirmed direction, not implemented | Many companies per account; at most one Google identity per account and exactly one usable Google login for an active Google-only account; each Google identity unique to one account; multiple signed-in Worktandem accounts with switching; see [ADR-003](#adr-003-one-google-identity-per-worktandem-account) |
+| Google replacement and future providers | Open | No second-Google linking or unrestricted unlink/relink; replacement/recovery and non-Google provider cardinality need separate decisions |
 | Multi-tab session context | Open | Isolated request context and stale-request guards required; tab strategy not selected |
 | Company Google/domain integration | Confirmed optional direction, not implemented | Domain setup belongs to optional Google API integration; manual outside-domain invitations remain allowed |
 | Workspace directory sync and domain auto-join | Research proposals | Not adopted or implemented; neither grants authority implicitly |
@@ -29,9 +30,11 @@ This register separates architectural direction from delivered behavior.
 
 ## ADR-001: Multiple accounts, memberships, and Google identities
 
-**Date:** 2026-10-28. **Status:** account/membership cardinality remains confirmed;
-Google-scope/onboarding/integration summary partially superseded by ADR-002;
-implementation pending. Historical decision text below is retained.
+**Date:** 2026-10-28. **Status:** multiple company memberships and concurrent
+Worktandem accounts remain confirmed. The many-Google-identities-per-account rule
+and its linking/unlinking flow are superseded by ADR-003; Google-scope/onboarding/
+integration summary is partially superseded by ADR-002. Implementation pending.
+Historical decision text below is retained and is not current Google-linking guidance.
 
 **Context:** People may participate in several companies, use several Google
 identities, and keep separate Worktandem accounts signed in within one browser.
@@ -57,7 +60,8 @@ Google support does not adopt directory sync, domain auto-join, or Require Googl
 
 **Date:** 2026-10-29. **Status:** confirmed product direction; implementation pending.
 Supersedes earlier mixed-provider/local-password implications and generic company
-onboarding descriptions. ADR-001's account/identity/membership cardinalities remain valid.
+onboarding descriptions. Its inherited Google multiplicity is superseded by ADR-003;
+multiple company memberships and concurrent Worktandem accounts remain valid.
 
 **Context:** Google login, company applications, manual invitations and optional
 Google API integration must share one coherent account model without making a
@@ -94,6 +98,41 @@ The former no-guests restriction proposal is superseded, not an open default.
 **Implementation:** No authentication, approvals, operator app, invitation endpoints,
 EF entities/migrations or design changes are delivered. See the
 [database proposal alignment review](../database/identity-alignment-review).
+
+## ADR-003: One Google identity per Worktandem account
+
+**Date:** 2026-10-29. **Status:** confirmed product direction; not implemented.
+Supersedes ADR-001's many-Google-identities rule and the earlier specification's
+second-Google linking/unlinking flows. ADR-002's onboarding/invitation/admin rules
+and the multi-company/concurrent-Worktandem-account decisions remain in effect.
+
+**Context:** Users may keep separate Worktandem accounts for different Google
+identities. They do not need several Google accounts attached to one Worktandem
+account. This does not restrict the companies an account may participate in.
+
+**Decision:** At most one Google identity per Worktandem account; an active
+Google-only account has exactly one usable Google login. A validated Google
+issuer/subject belongs to only one Worktandem account. Preserve many company
+memberships and multiple signed-in Worktandem accounts in a browser. Switching
+accounts changes actor; switching companies changes that actor's tenant context.
+Email matching never merges accounts or attaches a second Google identity.
+
+**Consequences:** Remove add-second-Google linking screens and examples. Invitation
+mismatch requires switching to the matching identity's Worktandem account or
+starting its own registration if new, not attaching it to the current account.
+Preserve global issuer/subject uniqueness and add Google-scoped per-account
+uniqueness in the eventual provider/library model, including concurrency checks.
+Physical constraints remain undecided; do not impose Google cardinality on future
+providers or make AccountId globally unique across all external providers.
+
+**Open:** Google identity replacement/recovery requires a separate proof, atomicity
+and revocation policy; no unrestricted unlink/relink or removal of the only usable
+login. Non-Google provider cardinality/linking remains open. This decision does not
+resolve invitation mailbox-evidence policy O07 or the other proposed product defaults.
+
+**Implementation:** Documentation only; no identity tables, EF migrations, app code
+or designs changed. See the [canonical specification](../product/identity-and-company-access)
+and [database alignment review](../database/identity-alignment-review).
 
 ## Recording changes
 

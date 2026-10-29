@@ -27,6 +27,9 @@ The main changes required by confirmed rules are:
    with current matching Google-email evidence and safe concurrency.
 5. Preserve explicitly invited outside-domain membership eligibility when optional
    domain policies or later directory synchronization apply.
+6. Replace the earlier many-Google-identities proposal with one Google identity per
+   Worktandem account, while preserving issuer/subject ownership and leaving
+   non-Google provider cardinality open.
 
 Exact fields, statuses, recovery and synchronization records below are proposals.
 The earlier strict-domain/no-guests proposal is superseded by the confirmed manual
@@ -40,6 +43,7 @@ Pinned links below resolve to the reviewed commit, not a moving branch.
 | --- | --- | --- |
 | Before model acceptance | [Identity: provider-owned records](https://github.com/Podvysotskyi/worktandem-docs/blob/493443ed1a414d4d567f88712008d43232ca35ff/docs/database/identity.md#provider-owned-authentication-records) includes optional LocalCredential and password/challenge language | Google-only current scope has no local password login/setup/recovery. Keep provider-managed session and rotation requirements; do not generate duplicate credential/challenge tables just because they appear in a catalog |
 | Before model acceptance | [Identity: Account](https://github.com/Podvysotskyi/worktandem-docs/blob/493443ed1a414d4d567f88712008d43232ca35ff/docs/database/identity.md#account) leaves local-login email uniqueness open | Remove local-login rationale; account contact email is not the login identity key. Email matching/normalization remains open for invites; do not add global email uniqueness or email-based merges |
+| Before model acceptance | [ExternalIdentity](https://github.com/Podvysotskyi/worktandem-docs/blob/493443ed1a414d4d567f88712008d43232ca35ff/docs/database/identity.md#externalidentity) explicitly allows many Google identities per account and rejects account/provider uniqueness | That Google multiplicity is obsolete under ADR-003. Keep global unique issuer/subject and add Google-scoped uniqueness of owning AccountId; active Google-only accounts need exactly one usable Google login. Choose the eventual provider/library constraint without deciding future-provider cardinality |
 | Before model acceptance | [Organization: Company](https://github.com/Podvysotskyi/worktandem-docs/blob/493443ed1a414d4d567f88712008d43232ca35ff/docs/database/organization.md#company) proposes Active/Suspended/Archived only | Represent Pending application, approved/rejected review history and a real backend business gate. Choose whether review state and operational status are separate axes or one lifecycle; do not merely rename Active without deciding |
 | Before model acceptance | CompanyMembership implies JoinedAt is always required and active-owner rules assume an established company | Keep applicant/owner candidate separate until activation. Proposed default activates owner on approval in the same Organization transaction; no active privileged owner before approval |
 | Before model acceptance | [Authorization introduction](https://github.com/Podvysotskyi/worktandem-docs/blob/493443ed1a414d4d567f88712008d43232ca35ff/docs/database/authorization.md) says authorization belongs to company membership | Qualify this as tenant authorization. Add separate explicit platform grants and operator endpoint checks; company Owner must not imply platform privileges |
@@ -52,8 +56,13 @@ Pinned links below resolve to the reviewed commit, not a moving branch.
 
 ## Keep these earlier constraints
 
-- Unique canonical `(Issuer, Subject)` across accounts, with case-sensitive subject
-  and many Google identities per account. No unique `(AccountId, Provider)` shortcut.
+- Unique canonical `(Issuer, Subject)` across accounts, with case-sensitive subject.
+  **Changed Google cardinality:** also enforce at most one Google identity per
+  owning account, including concurrent enrollment. A Google-scoped relation,
+  filtered/provider-scoped unique key or library equivalent remains a physical
+  design choice. Do not impose a blanket AccountId or `(AccountId, Provider)` rule
+  on future providers before their cardinality is decided. Active Google-only
+  accounts need exactly one usable Google login; uniqueness alone cannot ensure it.
 - Unique company/account membership; same-company composite foreign keys on
   membership, role, department and team references. A GUID by itself does not prove
   tenant consistency.
@@ -65,7 +74,7 @@ Pinned links below resolve to the reviewed commit, not a moving branch.
   Account.CurrentCompanyId; multiple browser accounts remain independently revocable.
 - Query filters are defense in depth, not endpoint authorization or complete write
   protection. Raw SQL, bulk writes, workers and operator paths need their own checks.
-- Concurrency/versioning, unique constraints, audit and last-login/last-owner race
+- Concurrency/versioning, unique constraints, audit and only-login/last-owner race
   protections remain necessary. Relational guarantees need real-provider tests.
 - [EF migration ownership](https://github.com/Podvysotskyi/worktandem-docs/blob/493443ed1a414d4d567f88712008d43232ca35ff/docs/database/ef-core.md)
   stays service-local; Domain remains framework-free. There is no all-system
@@ -77,6 +86,7 @@ This is a logical change list, not permission to implement it.
 
 | Area | Proposed shape | Unresolved choice |
 | --- | --- | --- |
+| Google identity cardinality | Global issuer/subject uniqueness plus Google-scoped per-account uniqueness; preserve exactly one usable Google login for active Google-only accounts | Mapping to the chosen provider/library; Google replacement/recovery policy; future-provider cardinality remains separate and open |
 | Company review | Company references current review state/version; CompanyApplication stores submitted form snapshots; ReviewDecision records authorized actor, outcome, reason and reviewed version | Exact required form fields; one status enum versus separate review/lifecycle axes; pending edits; resubmission |
 | Owner candidate | ApplicantAccountId on application or explicit non-active candidate record; approval activates member + Owner grant | Candidate record versus inactive membership; preserve JoinedAt meaning and avoid active-role leakage |
 | Platform authorization | Explicit AccountId + platform capability grant, granting/revoking actor/time and concurrency | Owning Identity capability, bootstrap, MFA assurance and last-operator recovery |
@@ -122,8 +132,10 @@ engine or sync schema while synchronization is still unadopted scope.
    member with its former privileged grants.
 5. **Change identity/member status:** stale email evidence must not reveal new
    invitations to a former mailbox holder. An identity with the same recycled email
-   cannot inherit an old account or membership. Define unlink/suspension races and
-   proof freshness without storing full reusable ID tokens as audit evidence.
+   cannot inherit an old account or membership. Define suspension races and any
+   separately approved replacement/recovery workflow; do not offer unrestricted
+   unlink/relink or remove an active account's only usable login. Define proof
+   freshness without storing full reusable ID tokens as audit evidence.
 6. **Notify:** persist required notification intent with business state and retry
    independently. Email failure does not reverse approval or duplicate membership.
 
@@ -135,8 +147,8 @@ These are future tests, not checks run by this documentation change:
 | --- | --- |
 | Approval | Pending candidate cannot use business/invite/member APIs; stale application cannot be approved; concurrent decision activates one owner |
 | Platform boundary | Company Owner cannot review companies or grant platform capabilities; valid operator still needs explicit relevant platform permission |
-| In-app invitation | No-company account can list its eligible invitations and accept without copying a secret from email; forged/stale-identity lookup is denied |
-| Identity/email | Changed email preserves account key; matching uses current proven Google email; no dot/plus alias inference, email-based merge or reassigned-mailbox inheritance |
+| In-app invitation | No-company account can list eligible invitations; authenticated acceptance does not inherently require the email-link token. Additional same-address mailbox evidence for non-Gmail/no-hd identities remains subject to O07; no OTP/evidence policy is adopted here; forged/stale-identity lookup is denied |
+| Identity/email | Changed email preserves account key; global issuer/subject ownership and one-Google-per-account hold under races; matching uses current proven Google email; no second-Google attachment, dot/plus alias inference, email-based merge or reassigned-mailbox inheritance |
 | Invite concurrency | Accept versus revoke/expiry/resend has one result; replay creates no extra grants; old link generation fails |
 | Membership lifecycle | Suspended/removed member is not automatically reinstated; already-member invite cannot escalate grants |
 | Optional integration | Outside-domain manual member retains permitted access after integration/policy checks and directory absence; explicit suspension remains effective |
