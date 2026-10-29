@@ -30,7 +30,7 @@ update the root submodule pointer only when that child revision is ready to cons
 
 ## Run this site
 
-Inside the documentation repository, use Node.js 24 and npm:
+Inside the documentation repository, use Node.js 26 LTS (26.13.0, pinned in `.nvmrc`) and npm:
 
 ```sh
 npm ci

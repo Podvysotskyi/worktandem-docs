@@ -1,6 +1,6 @@
 # Contributing
 
-1. Use Node.js 24 and run `npm ci`.
+1. Use Node.js 26 LTS (see `.nvmrc`) and run `npm ci`.
 2. Edit Markdown under `docs/`; update navigation in
    `docs/.vitepress/config.mjs` when adding a page.
 3. Run `npm run docs:dev` to check your edits locally.
