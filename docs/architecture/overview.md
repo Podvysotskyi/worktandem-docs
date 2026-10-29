@@ -23,12 +23,23 @@ semantics should be documented alongside the eventual API and server-side enforc
 ## Accounts, companies, and sign-in
 
 The confirmed [account model](./accounts-and-authentication) supports multiple
-company memberships per Worktandem account, multiple Google identities linked to
-one account (each Google identity unique to one Worktandem account), and multiple
+company memberships per Worktandem account, at most one Google identity per account
+(exactly one usable Google login for an active Google-only account; each identity
+unique to one Worktandem account), and multiple
 signed-in Worktandem accounts in one browser. Account and company switching are
-distinct; roles remain company-scoped. Google sign-in is confirmed direction, not
-implemented authentication or enterprise SSO. Session design and the multi-tab
-switching strategy remain open.
+distinct; roles remain company-scoped. No second-Google linking flow is included;
+replacement/recovery and future-provider cardinality remain open.
+Google-only sign-in is the present direction;
+no local email/password flow is planned for this scope. New self-service registration
+creates a Pending company for manual platform review. A separate Nuxt platform-admin
+application is planned. Existing users must see pending invitations in the app,
+with acceptance requiring a Google identity matching the invited verified email.
+
+Optional company-domain configuration belongs to separate Google API integration.
+Manual outside-domain invitations remain allowed even with that integration enabled.
+See the canonical [product specification](../product/identity-and-company-access)
+and [database proposal review](../database/identity-alignment-review). None of these
+flows is implemented. Session design and multi-tab switching remain open.
 
 ## Frontend scaffold configuration
 
@@ -44,7 +55,9 @@ The following are candidates, not installed infrastructure or implemented featur
 
 - A future `/crm` application path; it is not implemented by the scaffold.
 - Shared-session implementation and multi-tab context design remain undecided, although Google sign-in support is confirmed.
-- Google Workspace directory sync, domain auto-join, and Require Google are research proposals, not adopted features.
+- Google Workspace directory sync and domain auto-join remain separate proposals.
+  Optional domain configuration is confirmed direction; its verification/policy
+  implementation is open and must preserve manual outside-domain invitations.
 - PostgreSQL for persistence, RabbitMQ for messaging, SignalR for real-time delivery,
   and Hangfire for background jobs.
 
