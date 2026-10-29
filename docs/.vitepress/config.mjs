@@ -26,12 +26,13 @@ export default defineConfig({
         { text: 'Database proposal alignment review', link: '/database/identity-alignment-review' }
       ] },
       { text: 'Database design', items: [
-        { text: 'Overview and decisions', link: '/database/overview' },
+        { text: 'Overview and open decisions', link: '/database/overview' },
         { text: 'Identity entities', link: '/database/identity' },
         { text: 'Organization entities', link: '/database/organization' },
         { text: 'Authorization entities', link: '/database/authorization' },
         { text: 'Integrity and lifecycle', link: '/database/integrity' },
-        { text: 'EF Core and migrations', link: '/database/ef-core' }
+        { text: 'EF Core and migrations', link: '/database/ef-core' },
+        { text: 'Alignment review and dispositions', link: '/database/identity-alignment-review' }
       ] }
     ],
     socialLinks: [

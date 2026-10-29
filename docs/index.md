@@ -32,4 +32,6 @@ for current design coverage and pending updates.
 The canonical [identity, onboarding and invitations specification](./product/identity-and-company-access)
 records the latest Google-only, manual company approval and invitation rules, with
 open choices marked. The [database alignment review](./database/identity-alignment-review)
-explains what the earlier unmerged database proposal needs to change.
+preserves the earlier proposal's findings and links to their current documentation
+dispositions. The [database catalog](./database/overview) remains a proposed logical
+model for review, with no implemented entities or migrations.

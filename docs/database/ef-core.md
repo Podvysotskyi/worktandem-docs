@@ -4,6 +4,9 @@
 **Implementation status:** no entity classes, DbContexts, provider packages or migrations
 are introduced by this documentation. Provider selection and logical-model review
 come first.
+This catalog follows the [current product specification](../product/identity-and-company-access)
+and [alignment dispositions](./identity-alignment-review#documentation-dispositions).
+P01–P04/O decisions remain open even where a concrete proposed mapping appears.
 
 ## Model versus migration
 
@@ -23,6 +26,7 @@ See the [EF migrations overview](https://learn.microsoft.com/en-us/ef/core/manag
 | Organization.Infrastructure | DbContext, EF Fluent configurations, provider adapter, migrations and snapshot |
 | Organization.Api | Composition root, runtime configuration and endpoints |
 | Proposed Identity service | Its own equivalent ownership; provider-owned models remain in the proper adapter rather than leaking into business entities |
+| Integration capability | Company consent, protected secret references and optional domain evidence in the selected owner; no automatic new service or DbContext |
 | Gateway | No Organization migrations or business entities |
 
 Use one IEntityTypeConfiguration per mapped entity and apply configurations from the
@@ -46,6 +50,37 @@ through a migration. Reserved permission definitions may be versioned determinis
 reference data only after catalog design is agreed.
 
 ## Migration workflow
+
+### Model review gate
+
+Before generating any migration, agree the implementation slice and confirm its
+mapping preserves these logical requirements:
+
+- Global canonical issuer/subject ownership and Google-scoped per-account uniqueness;
+  active Google-only accounts retain exactly one usable login. Choose the provider/
+  library mapping; do not impose Google cardinality on future providers or generate
+  a custom local-password/recovery schema.
+- Pending company gating, versioned submissions, unique terminal review decisions
+  and owner candidate distinct from activated membership. Choose one lifecycle
+  representation and P03 activation behavior before declaring fields required.
+- Separate platform capability grants versus company-scoped role/scope bindings;
+  no seeded real operator or tenant-owner-to-platform shortcut.
+- Tenant-consistent application, invitation, member, role and manual-eligibility FKs;
+  external account/proof IDs remain service contracts rather than cross-DB FKs.
+- One invitation for email/in-app paths with optional email-link credential storage;
+  no mandatory emailed token on authenticated in-app acceptance. O07 evidence policy
+  remains open, not a migration-defined OTP workflow.
+- Explicit manual outside-domain eligibility survives later domain checks/directory
+  absence; suspension and RBAC still deny. Sync records only follow adopted sync scope.
+- Restrict deletion, concurrency and real-provider uniqueness/index support;
+  approval/consumption/revoke races, audit and notification delivery are application
+  workflows as well as storage constraints. SQL uniqueness alone cannot prove them.
+
+Proposed string bounds, enum values, nullable review pointers, filtered unique keys
+and evidence references need provider/library review. Do not silently replace a
+Google-scoped index with global AccountId uniqueness because it is easier to map.
+
+### Later implementation sequence
 
 1. Select provider/version and compatible EF/provider tooling, then approve the
    initial entity slice and unresolved decisions from the [overview](./overview).

@@ -4,6 +4,10 @@
 references below stay within the Organization database except AccountId, an Identity
 service reference. See [integrity rules](./integrity) for composite tenant FKs and
 [authorization](./authorization) for permission roles.
+The [product specification](../product/identity-and-company-access) controls confirmed
+behavior. P01–P04 form, review, owner-activation and invitation defaults remain
+proposals. The following fields and lifecycle names are logical modeling choices,
+not generated entities or migrations.
 
 ## Company
 
@@ -12,13 +16,55 @@ service reference. See [integrity rules](./integrity) for composite tenant FKs a
 | Id | Guid, required, PK | Tenant/workspace ID |
 | Name | string, required, max 200 | Display name, not globally unique |
 | Slug | string, required, max 100 | Proposed stable normalized workspace locator |
-| Status | required enum | Proposed Active, Suspended, Archived |
+| Status | required enum | Proposed Pending, Approved, Rejected, Suspended, Archived; Pending/manual approval is confirmed, exact representation open |
+| CurrentApplicationId | Guid? | Latest submitted application; tenant-consistent reference if stored |
 | CreatedAt, UpdatedAt, Version | required | Lifecycle/concurrency |
 
 Unique normalized Slug proposed; identifiers/links must not rely on mutable display
 names. Company is the Worktandem tenant, **not a CRM customer organization**. Future
 customer records belong to their business service and have their own CompanyId.
 Archive first; no broad cascade delete of all tenant history.
+
+Pending is a business-access gate, not an active membership or global account block.
+Proposed transitions: Pending → Approved/Rejected; Rejected → Pending on a versioned
+resubmission; Approved ↔ Suspended; Approved/Suspended → Archived under a reviewed
+retention policy. An alternative separate ReviewStatus + OperationalStatus model
+remains open O03; do not implement both representations without choosing consistency
+rules. Proposed owner activation happens only after approval, in the same owning
+transaction as the company/review decision. A platform UI status label is not enforcement.
+
+## CompanyApplication and ReviewDecision
+
+Proposed **owner candidate = application's ApplicantAccountId**, not an Active
+membership with an Owner role. This keeps JoinedAt meaningful and avoids creating
+privileges before approval. A separately non-active candidate membership is an
+alternative requiring agreement under P03, not a second table to add by default.
+
+| Record | Required proposed fields | Optional proposed fields | Keys, indexes and lifecycle |
+| --- | --- | --- | --- |
+| CompanyApplication | Id, CompanyId, ApplicantAccountId Guid; SubmissionNumber int; CompanyName string(200); CountryCode bounded string; BusinessDescription string(2000); ApplicantRoleDescription string(200); SubmittedAt UTC; Version Guid | Website string?, LegalRegistrationId string? | PK Id; alternate (CompanyId, Id); unique (CompanyId, SubmissionNumber); company FK; index SubmittedAt/CompanyId for authorized queue; Restrict history deletion |
+| ReviewDecision | Id, CompanyId, ApplicationId, ReviewerAccountId Guid; ReviewedApplicationVersion Guid; Outcome Approved/Rejected; DecidedAt UTC; PlatformAuthorizationEvidenceRef bounded string; IdempotencyKey bounded string | ApplicantVisibleReason string?, InternalNote string? | PK Id; same-company application FK; unique (CompanyId, ApplicationId) for one terminal decision per submission; index (CompanyId, DecidedAt); Restrict deletion |
+
+All AccountId and authorization-evidence references above are external contracts,
+not SQL FKs. Field requirements/lengths in the form snapshot are P02 proposals,
+not confirmed mandatory registration fields. Keep reviewed submissions immutable;
+edits/resubmission produce a new version/record under agreed O03 rules. If a draft
+form is persisted, model its incomplete fields separately from a submitted snapshot.
+
+If Company.CurrentApplicationId is stored, use (Company.Id, CurrentApplicationId) →
+CompanyApplication(CompanyId, Id); null is allowed during initial creation before
+setting the pointer in the same transaction. Resolve insert order without broad
+cascades or a global required circular FK. Current submission is one pointer, not
+an assumption that the highest client-supplied number is authoritative.
+
+Proposed checks: SubmissionNumber > 0; reviewed version/outcome must agree with the
+submitted version; require a non-empty applicant-visible rejection reason if P03
+is adopted. Internal notes have separate authorization and are not returned to the
+applicant. Compare expected version and authorize the current platform capability
+before deciding; later grant revocation does not delete historical reviewer evidence.
+Scope/deduplicate idempotency by actor + operation + company + payload, not by a
+globally reusable client key alone. Review and outbox/audit persist with approval;
+network notification failure does not reverse an approval.
 
 ## CompanyMembership
 
@@ -29,19 +75,24 @@ Archive first; no broad cascade delete of all tenant history.
 | AccountId | Guid, required, external reference | Worktandem account; no cross-service SQL FK |
 | Status | required enum | Proposed Active, Suspended, Left |
 | JobTitle | string?, max 200 | Company-specific title; not an access role |
-| JoinedAt | UTC instant, required | First accepted membership |
+| JoinedAt | UTC instant, required | First activated membership, through approved owner activation or invitation acceptance |
 | EndedAt | UTC instant? | Current departure state |
 | CreatedAt, UpdatedAt, Version | required | Lifecycle/concurrency |
 
 Unique (CompanyId, AccountId); alternate unique key (CompanyId, Id) supports tenant
-FKs. Index (AccountId, Status) for company selection. Rejoining reactivates the same
-membership under a reviewed workflow; historical changes go to audit, not duplicate
-active/left rows. Proposed CHECK: EndedAt is populated only for Left, and not before
+FKs. Index (AccountId, Status) for company selection. Rejoining/reinstatement requires
+an explicitly authorized workflow; do not auto-reactivate a Suspended/Left membership
+or restore its former elevated grants on invitation acceptance. Reuse/history policy
+is O05/O09. Proposed CHECK: EndedAt is populated only for Left, and not before
 JoinedAt. Company-specific profiles belong here, not on the global account.
 
 Invitation is separate: an email invitation must not create an active membership or
 link identities before verified acceptance. Active membership alone does not grant
 all permissions. Removal disables access promptly and retains references for history.
+An approved active company's last usable Owner needs transaction-safe protection;
+a Pending company intentionally has only an applicant/candidate. Optional domain
+rules honor authorized manual invitation eligibility on later requests; membership
+suspension still denies regardless of eligibility or directory presence.
 
 ## CompanyInvitation
 
@@ -50,23 +101,110 @@ all permissions. Removal disables access promptly and retains references for his
 | Id | Guid, required, PK | Invitation ID |
 | CompanyId | Guid, required, FK Company | Target tenant |
 | RecipientEmail / NormalizedEmail | strings, required, max 320 | Intended recipient; not an account key |
+| EmailMatchingPolicyVersion | bounded string, required | One agreed conservative matching function for issue/discovery/acceptance |
 | InvitedByMembershipId | Guid, required | Same-company inviter |
-| TokenDigest | bytes, required | Digest of random invitation secret, never raw bearer value |
-| Status | required enum | Pending, Accepted, Revoked, Expired proposal |
+| Origin | required bounded enum | AdminManual in current scope; not automatic domain/directory enrollment |
+| Status | required enum | Pending, Accepted, Declined, Revoked, Expired proposal |
 | CreatedAt, ExpiresAt | UTC instants, required | Lifetime |
 | AcceptedAt / AcceptedByMembershipId | UTC instant? / Guid? | Set together on verified acceptance |
+| AcceptedByAccountId / AcceptedIdentityEvidenceRef | Guid? / bounded string? | Server-validated accepting account and current Google proof reference, set with acceptance; no raw ID token |
+| TerminalAt | UTC instant? | Set for any terminal state |
 | Version | Guid, required | Concurrent consumption/revocation protection |
 
-Unique TokenDigest; index (CompanyId, NormalizedEmail, Status) and (Status, ExpiresAt).
-ExpiresAt > CreatedAt; acceptance fields populated iff Accepted. Both membership
-references use (CompanyId, MembershipId) FKs. Expiry must be checked at request time,
-not depend on a cleanup job changing Status. Do not use a time-dependent CHECK.
+Use alternate (CompanyId, Id) for tenant-bound references; indexes
+(CompanyId, NormalizedEmail, Status), (NormalizedEmail, Status, ExpiresAt) for the
+explicit account inbox path, and (Status, ExpiresAt) for cleanup. No unauthenticated
+email-search endpoint is implied. Proposed one outstanding offer per company/address
+uses race-safe uniqueness; an expired-but-not-cleaned Pending row must be handled
+transactionally before resend/reinvite. Final duplicate/lifetime policy is P04/O05.
 
-Proposed first slice grants no automatic elevated role from invitation metadata;
-authorized administrators assign access after acceptance. If preselected invitation
-roles are needed, explicitly model/revalidate those grants at acceptance. Verified
-recipient control and authenticated accepting account are both required; email-match
-alone neither links Google nor transfers an existing account.
+Proposed checks: ExpiresAt > CreatedAt; accepted proof/actor/member fields populated
+iff Accepted; TerminalAt present iff terminal and not before CreatedAt. Both member
+references use (CompanyId, MembershipId) FKs. AcceptedByAccountId must match that
+membership's AccountId, validated locally; evidence ownership/freshness is checked
+through the Identity contract. Restrict deletion while referenced by eligibility
+or history. Expiry is checked at request time, not only by a cleanup job; do not
+use a time-dependent SQL CHECK.
+
+**One invitation, two entry points:** email and in-app use this record. An
+authenticated no-company inbox matches current evidence for the account's single
+Google identity. A contact email, stale snapshot, email link alone or another
+account's Google identity is insufficient. On mismatch, switch to the matching
+identity's Worktandem account or start its own registration; never attach a second
+Google identity or merge by email. O07 additional same-address mailbox evidence for
+non-Gmail/no-hd identities remains open; no OTP/proof policy is adopted here.
+
+**Proposed role offer:** P04's initial-role default remains open. If selected,
+represent offered roles/scopes with explicit same-company invitation/role/target
+bindings equivalent to the [membership scope bindings](./authorization#scoped-role-assignments).
+Revalidate inviter delegation, current role/scope and accepting membership at commit;
+do not add an unvalidated polymorphic ScopeId or accept a client role list. Existing
+members gain no automatic elevated roles; suspended/removed members need the
+separate authorized reinstatement workflow. An unconfigured initial role policy
+cannot be treated as permission to expose business endpoints.
+
+Suggested outcomes remain proposed: Pending → Accepted/Declined/Revoked/Expired;
+seven-day expiry and rotating the old link on resend are P04, not confirmed defaults.
+An already-active member may return an idempotent membership result without role
+escalation; whether it records a new manual eligibility requires the explicit
+authorized acceptance policy. Acceptance/revoke/resend races have one winner;
+retries do not revive a terminal offer or duplicate grants/notifications.
+
+## InvitationLinkCredential
+
+Proposed optional current link record: CompanyId/InvitationId Guid (composite PK
+and tenant-consistent FK to Invitation), Generation int, TokenDigest bytes,
+CreatedAt/ExpiresAt UTC (required); RevokedAt UTC?; Version Guid required. Unique
+TokenDigest; index ExpiresAt; positive generation and expiry after creation.
+Restrict delete until controlled credential cleanup; do not cascade away invitation
+history. Validate link expiry against invitation expiry in the workflow.
+
+There may be zero records when no email link has been issued; a link record's
+digest is required only when that record exists. Resend rotates generation/digest
+under the invitation version; old generations cease to work. An email-link GET
+does not consume membership. **Authenticated in-app acceptance does not inherently
+require this emailed token.** Its account/Google evidence and unresolved O07 policy
+are checked separately. A digest is not a second invitation or an email-only login.
+
+## Manual membership eligibility
+
+Confirmed result: authorized manual outside-domain invitations permit joining and
+continued company use even with optional Google/domain controls. **Proposed minimal
+record** ManualInvitationEligibility: CompanyId, MembershipId, AcceptedInvitationId
+Guid, GrantedAt UTC, Version Guid (required); RevokedAt UTC? and RevokedByMembershipId
+Guid? (optional, subject to O08 authority policy). Proposed PK
+(CompanyId, AcceptedInvitationId), tenant FKs to member/invitation and optional
+revoking member; index (CompanyId, MembershipId, RevokedAt). Check chronology,
+validate accepted invitation/recipient/member agreement transactionally, and retain
+history with Restrict deletion.
+
+This is eligibility, not a company role, and does not override account/company/member
+suspension. If directory synchronization is adopted, its eligibility can coexist
+independently: directory absence/revocation must not erase a valid manual grant;
+sync must never undo explicit suspension. Do not use one overwriteable Source flag.
+Directory grant schema, revocation/expiry, identity replacement and exception scope
+remain open; no generic provisioning ledger is prescribed before sync scope exists.
+
+## Optional Google integration and domains
+
+These logical records belong to the selected integration owner, not necessarily a
+new deployable service or Organization DbContext. If service-local they may use
+company FKs; otherwise CompanyId and actor references are external contract IDs.
+
+| Record | Required proposed fields | Optional proposed fields | Constraints/lifecycle |
+| --- | --- | --- | --- |
+| GoogleConnection | Id, CompanyId, AuthorizedByAccountId Guid; ConsentPrincipalReference bounded string; GrantedScopes bounded set; ConsentAt UTC; Status Connected/Revoked/Error; Version Guid | ProtectedSecretReference bounded string?, RevokedAt UTC?, LastCheckedAt UTC? | PK Id; index (CompanyId, Status); restrict deletion pending reviewed disconnect/secret cleanup; token values never copied into docs/audit |
+| CompanyDomainPolicy | Id, CompanyId Guid; DomainAscii bounded string; Status PendingVerification/Verified/Revoked; PolicyVersion Guid | ControlEvidenceReference bounded string?, VerifiedAt UTC?, RecheckAt UTC?, RestrictionMode bounded enum? | PK Id; proposed unique (CompanyId, DomainAscii); index (Status, RecheckAt); verification evidence required for Verified; no global domain-ownership uniqueness assumption |
+
+Separate company-admin OAuth consent for requested APIs from login; request only
+feature scopes. Record the validated consent principal separately from the Worktandem
+administrator who initiated configuration; consent is not inferred from that actor's
+login association. A domain suffix, typed website, user hd claim or successful Google
+login does not prove company/domain control or confer owner/platform rights.
+Domain verification/conflicts, enabled policy semantics and outage/revocation rules
+remain O08. Optional restriction cannot implement the superseded strict-no-guests
+proposal: preserve explicit manual outside-domain eligibility on every relevant
+access check. Directory sync and domain auto-join remain unadopted separate scope.
 
 ## Department and DepartmentMembership
 
