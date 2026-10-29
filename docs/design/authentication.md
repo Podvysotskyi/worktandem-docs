@@ -1,50 +1,51 @@
 # Authentication design flows
 
-**Status: desktop design specification; latest updates pending.** The
-[current Figma draft](https://www.figma.com/design/dSXPL7TKHMDP0lcxjTfikC)
-is the design reference, not an implemented authentication system. Access follows
-the file's existing permissions. No exports or sharing changes are implied.
+**Status: desktop design inputs; not implemented and no design files updated by this change.**
 
-As of 2026-10-28, the latest Google and multi-account/multi-company updates have
-**not been applied to Figma** because the available Figma integration reached its
-plan quota. Existing drafts must not be treated as confirmation of the updated
-model. The requirements below follow [Accounts and authentication](../architecture/accounts-and-authentication).
+The [canonical product specification](../product/identity-and-company-access) is the
+source of current confirmed rules and marks proposals/open choices. Earlier visual
+drafts may predate these decisions and do not override them. Apply confirmed rules
+and settle relevant proposals before revising actual designs.
 
 ## Desktop scope
 
-Focus on desktop flows. Existing mobile drafts remain unchanged; mobile design
-work and the earlier mobile welcome-button clipping fix are deferred, not current
-acceptance blockers. Preserve existing desktop work while updating the flows below.
+Current design work is desktop-only. Mobile drafts are not updated by this document.
+Use the canonical [screen inventory](../product/identity-and-company-access#desktop-design-inputs-after-decisions)
+and [acceptance matrix](../product/identity-and-company-access#acceptance-matrix-for-future-implementation)
+for detailed states and future verification.
 
-| Flow | Required desktop design states |
+| Flow | Current design requirement |
 | --- | --- |
-| Google login and registration | Continue with Google; handoff to Google's own account chooser; return, cancel, provider failure, and invalid/expired response; eligible email assurance skips duplicate verification, third-party email proof when needed |
-| Post-sign-in destination | Show the active Worktandem account and authorized company context; multiple-membership selection; no-company onboarding with create/join options where available; never imply that a Google domain grants membership |
-| Worktandem account switcher | Clearly identified active account; list other signed-in Worktandem accounts; Add another account; current-account versus all-account sign-out; loading and expired-session recovery |
-| Company switcher | Separate control scoped to the active account; active company and membership/role context; selection, loading, revoked/unavailable company, and pending invitation states |
-| Linked Google accounts | Account security settings list multiple linked identities; add and unlink actions; reauthentication and confirmation; prevent removing the last usable sign-in/recovery path |
-| Explicit linking | Authenticate the target Worktandem account and chosen Google identity; confirm the intended account; cancel safely; do not merge by matching email |
-| Identity already linked elsewhere | Explain that the identity cannot be linked here; offer another Google account or safe sign-in/recovery guidance; do not reveal the other account's private details or silently reassign it |
-| Recovery | Google-only account has no local password reset; guide to Google or an established recovery method; respect applicable company session assurance without implying a shipped company policy |
+| Sign-in and registration | Google only; chooser/cancel/provider error; no local password login/signup/recovery |
+| New self-service company | Company form, Pending status and manual approval gate; exact fields and rejection/resubmission defaults remain proposed |
+| Invitation join | Matching verified Google email, explicit acceptance, in-app pending invitation access including no-company accounts; no different-email OTP |
+| Invitee onboarding | Separate join path without duplicate company creation is proposed; do not treat it as separately approved |
+| Account versus company switching | Distinct controls; Add account is distinct from Link Google identity; stale context and expired-session states |
+| Linked identities | Both-proof linking, identity-already-linked conflict and final-login-method safeguard |
+| Platform administration | Separate Nuxt operator app; explicit platform permissions, review queue/detail and reason/version-conflict states |
+| Optional Google integration | Separate API consent and optional domains; manual outside-domain invitations and subsequent permitted member access remain available |
 
 ## Interaction requirements
 
-- Keep account identity and company context visible enough to distinguish actor
-  switching from tenant switching. Linking a Google identity is a third, separate action.
-- Cancel, Back, interrupted authentication, repeated submission, and stale responses
-  must not silently create accounts, link identities, or apply actions to a new context.
-- Switching must show a clear pending state and safe failure/recovery destination;
-  it must not flash another account/company's cached data.
-- Designs must not promise automatic global switching in other tabs. The tab/session
-  strategy remains undecided; implementation must preserve isolated request context.
-- Do not present Workspace directory sync, domain auto-join, Require Google, or
-  enterprise SSO as available features. Those enterprise capabilities are research
-  proposals, separate from confirmed Google sign-in support.
+- Keep the actor and company distinguishable. A Google identity chooser is not the
+  Worktandem account switcher or company selector.
+- Do not imply membership from a Google address/domain, an invitation view, a
+  configured integration or a module toggle.
+- Show Pending/invitation/account screens without business access. Other approved
+  company access remaining available while one company is Pending is a proposed
+  invariant awaiting confirmation.
+- Preserve explicit identity/account choice on mismatch; no automatic linking/merge.
+- Distinguish sign out current versus all Worktandem accounts; avoid promising global
+  cross-tab switching until session mechanics are selected.
+- Show manual outside-domain eligibility separately from directory membership if
+  directory sync is later adopted; a missing directory entry must not erase it.
+- Keep the Google third-party-email evidence policy visibly unresolved rather than
+  drawing an adopted OTP or email-only login flow.
 
 ## Review checklist
 
-Review all desktop states against [ADR-001](../architecture/decisions#adr-001-multiple-accounts-memberships-and-google-identities)
-and the [acceptance requirements](../architecture/accounts-and-authentication#design-coverage-and-acceptance-criteria).
-After Figma access becomes available, apply and inspect the pending screens before
-marking this page updated. A completed mockup would still not establish backend
-integration, authorization enforcement, or passing authentication tests.
+Review against [ADR-002](../architecture/decisions#adr-002-google-only-onboarding-invitations-and-platform-review),
+the canonical specification and its decision inventory. Confirm loading, empty,
+error, declined/revoked/expired, already-member, wrong-identity and suspension states.
+Proposed expiry, decline, role defaults and form requirements need product agreement.
+No mockup, client route or completed documentation establishes backend access control.
