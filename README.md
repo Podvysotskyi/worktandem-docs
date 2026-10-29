@@ -4,7 +4,7 @@ VitePress source for Worktandem's setup, architecture, and decisions.
 
 ## Local development
 
-Use Node.js 24 (see `.nvmrc`) and npm.
+Use Node.js 26 LTS (26.13.0, pinned in `.nvmrc`) and its bundled npm 11.20.0.
 
 ```sh
 npm ci
