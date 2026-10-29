@@ -7,7 +7,8 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Getting started', link: '/getting-started' },
-      { text: 'Architecture', link: '/architecture/overview' }
+      { text: 'Architecture', link: '/architecture/overview' },
+      { text: 'Database', link: '/database/overview' }
     ],
     sidebar: [
       { text: 'Guide', items: [
@@ -23,6 +24,15 @@ export default defineConfig({
       { text: 'Product specifications', items: [
         { text: 'Identity, onboarding and invitations', link: '/product/identity-and-company-access' },
         { text: 'Database proposal alignment review', link: '/database/identity-alignment-review' }
+      ] },
+      { text: 'Database design', items: [
+        { text: 'Overview and open decisions', link: '/database/overview' },
+        { text: 'Identity entities', link: '/database/identity' },
+        { text: 'Organization entities', link: '/database/organization' },
+        { text: 'Authorization entities', link: '/database/authorization' },
+        { text: 'Integrity and lifecycle', link: '/database/integrity' },
+        { text: 'EF Core and migrations', link: '/database/ef-core' },
+        { text: 'Alignment review and dispositions', link: '/database/identity-alignment-review' }
       ] }
     ],
     socialLinks: [

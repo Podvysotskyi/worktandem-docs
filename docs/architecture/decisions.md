@@ -23,7 +23,8 @@ This register separates architectural direction from delivered behavior.
 | Multi-tab session context | Open | Isolated request context and stale-request guards required; tab strategy not selected |
 | Company Google/domain integration | Confirmed optional direction, not implemented | Domain setup belongs to optional Google API integration; manual outside-domain invitations remain allowed |
 | Workspace directory sync and domain auto-join | Research proposals | Not adopted or implemented; neither grants authority implicitly |
-| EF Core code-first | Confirmed direction, not implemented | Migrations planned; see the unmerged database proposal and its [alignment review](../database/identity-alignment-review) |
+| EF Core code-first | Confirmed direction, not implemented | Migrations planned; see the [aligned logical catalog](../database/overview) and [review dispositions](../database/identity-alignment-review#documentation-dispositions) |
+| Relational entity model | Proposed, aligned with ADR-002/003 | [Service ownership and entity catalog](../database/overview); proposed fields/statuses are not approved defaults; provider, physical authentication schema and P01–P04/O choices remain open |
 | Persistence and messaging | Proposed | Evaluate PostgreSQL and RabbitMQ |
 | Real-time and background jobs | Proposed | Evaluate SignalR and Hangfire |
 | Documentation hosting | Open | No deployment or GitHub Pages publication configured |

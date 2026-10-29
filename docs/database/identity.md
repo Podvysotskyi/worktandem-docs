@@ -1,0 +1,132 @@
+# Identity entities
+
+**Status: logical requirements and proposed fields; no authentication implementation.**
+The [canonical product specification](../product/identity-and-company-access) and
+[ADR-003](../architecture/decisions#adr-003-one-google-identity-per-worktandem-account)
+control current behavior. Google-only sign-in is confirmed; local credentials and
+multiple Google identities on one Worktandem account are excluded. Provider/library,
+physical session storage and future-provider cardinality remain open.
+
+## Account
+
+A stable global actor, independent of company membership or a mutable Google email.
+
+| Property | Proposed type / nullability | Purpose |
+| --- | --- | --- |
+| Id | Guid, required, PK | Internal actor ID |
+| DisplayName | string, required, max 200 | User-facing name |
+| PrimaryEmail | string?, max 320 | Optional contact/profile address, never an independent login or invitation authority |
+| NormalizedPrimaryEmail | string?, max 320 | Optional contact lookup using the selected normalization policy |
+| Status | required enum | Proposed Active, Suspended, Closed |
+| CreatedAt, UpdatedAt, Version | required | UTC lifecycle metadata and concurrency token |
+
+Index NormalizedPrimaryEmail only for a concrete lookup. Do not infer global email
+uniqueness or merge accounts by email. Contact verification, if ever modeled, does
+not replace the accepting Google identity's current verified email. O06/O07 in the
+product specification govern normalization and current-mailbox evidence.
+
+An account without an approved membership can use authorized account/onboarding,
+status and invitation routes. A company's Pending status must not become an account
+suspension; access to other approved memberships remaining available is proposed P03.
+Do not add CompanyId, authoritative CurrentCompanyId or company roles to Account.
+Account suspension is separate from company or membership suspension.
+
+## ExternalIdentity
+
+| Property | Proposed type / nullability | Purpose |
+| --- | --- | --- |
+| Id | Guid, required, PK | Identity association ID |
+| AccountId | Guid, required, FK Account | Owning Worktandem account |
+| Provider | required bounded string | Google in the current scope |
+| Issuer | required bounded string | Canonical validated issuer |
+| Subject | required bounded string | Stable case-sensitive provider subject |
+| Email | string? | Last observed mutable provider email; not an account key |
+| EmailVerified | bool, required | Observed claim, not universal current-mailbox authority |
+| HostedDomain | string? | Validated Workspace claim snapshot, not company ownership |
+| ObservedAt, AssociatedAt | UTC instants, required | Evidence observation and initial association |
+| LastAuthenticatedAt | UTC instant? | Operational metadata |
+| Version | Guid, required | Proposed concurrency token |
+
+**Confirmed cardinalities:** unique canonical `(Issuer, Subject)` across accounts;
+at most one Google identity per AccountId, including concurrent enrollment. An
+active Google-only account has exactly one usable Google login. Choose a
+Google-specific relation, Google-scoped/filtered unique key or selected library's
+equivalent when choosing the physical model. Do not make AccountId globally unique
+across all future providers or impose `(AccountId, Provider)` on those providers
+before their cardinality is decided. Index AccountId for lookup; canonicalize
+accepted Google issuer aliases and preserve subject case without truncation.
+
+Account → Google identity is 0..1 at the storage boundary, with exactly one usable
+identity required by active Google-only workflows. Create a new active account and
+its initial identity consistently; an at-most-one constraint cannot ensure the
+required login exists. Identity ownership cannot be transferred or inferred from
+an email collision. Reauthenticating the same identity is idempotent resolution.
+
+There is no add-second-Google action or unrestricted unlink/relink. Restrict account
+removal through an explicit lifecycle; do not cascade away the only usable login.
+Google replacement/recovery needs a separately agreed proof, atomicity, conflict,
+audit and session-revocation policy. Future-provider rules remain open.
+
+Google documents stable subject identifiers and mutable emails in
+[OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect).
+Validate response signature, audience, issuer, expiry and flow-bound CSRF/replay
+protections. For third-party non-Gmail/no-hd addresses, Google's
+[email-authority guidance](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token)
+means `email_verified` alone may not prove current mailbox control. O07 remains open;
+no OTP, email-only login or differing-email fallback is selected.
+
+## Provider-owned authentication records
+
+These are logical capabilities, not additional custom EF tables beside the chosen
+library's own authentication/session model. No LocalCredential, password signup or
+password-reset schema belongs to the current scope.
+
+| Capability | Required logical information / constraints |
+| --- | --- |
+| AccountSession | Stable non-secret session reference; AccountId and authenticated identity/evidence binding; authentication time/assurance; creation/expiry/revocation and version |
+| Authentication evidence | Validated issuer/subject and current email/verified/hd evidence with observation/authentication time and freshness policy; do not trust editable contact fields or raw client claims |
+| Refresh credential, if selected | Library-managed expiry, rotation/revocation and replay protection; no commitment to JWTs or a separate refresh table |
+| Flow correlation, if persisted | Purpose, initiating session/account, safe return destination, expiry and one-time use; library-managed nonce/state protections, not a password-recovery framework |
+
+If records are persisted, reference local Account/ExternalIdentity through explicit
+FKs, index account/expiry/revocation lookup paths and use Restrict/NoAction until
+reviewed lifecycle cleanup. Secret bearer values are not session identifiers or
+audit payloads; store only digests/protected values where the selected protocol
+requires them. Do not retain full reusable ID tokens merely as acceptance evidence.
+Google login does not require keeping Google API access/refresh tokens.
+
+## PlatformGrant
+
+**Proposed ownership:** the Identity/platform-access capability, separately from
+Organization's tenant RBAC. No deployed Identity service is implied.
+
+| Property | Proposed type / nullability | Purpose |
+| --- | --- | --- |
+| AccountId | Guid, required, local FK Account | Operator account |
+| CapabilityKey | required bounded string | Code-owned platform permission, e.g. company review; not tenant RoleId |
+| GrantedByAccountId | Guid?, local FK Account | Granting operator; null only for separately controlled bootstrap with audit |
+| GrantedAt | UTC instant, required | Grant time |
+| RevokedAt / RevokedByAccountId | UTC instant? / Guid? | Revocation metadata; controlled bootstrap/recovery must remain auditable |
+| Version | Guid, required | Concurrency token |
+
+Proposed PK `(AccountId, CapabilityKey)` with lifecycle changes retained in audit;
+index `(CapabilityKey, RevokedAt)` for operator/grant queries. Validate revocation
+chronology and actor evidence in the workflow. No CompanyId, tenant role inheritance,
+email-domain grant or seeded real operator is implied. Restrict destructive account
+FK cascades. Bootstrap, grant authority, MFA/step-up and emergency recovery remain O10.
+A historical reviewer reference must survive later operator revocation without
+allowing that operator to make new decisions.
+
+## Multiple accounts in one browser
+
+Several independent Worktandem account sessions may coexist. Each account has its
+own single Google identity and company memberships. Browser/session-container,
+cookie, active-tab and cross-app storage remain open O11 choices; do not invent a
+provider-independent session table in advance.
+
+Resolve authenticated session/account and explicit company context per operation.
+A Google identity mismatch requires switching to its owning Worktandem account or
+starting that identity's own registration, never adding it to the current account.
+Scope caches/subscriptions by account + company where appropriate, discard stale
+responses, preserve in-flight actor/tenant context and distinguish current-account
+from all-account logout. See [request isolation](../architecture/accounts-and-authentication#request-and-session-isolation-requirements).

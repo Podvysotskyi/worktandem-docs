@@ -26,7 +26,9 @@ Context: [current account model](../architecture/accounts-and-authentication),
 [desktop design coverage](../design/authentication), and
 [database design draft PR #3](https://github.com/Podvysotskyi/worktandem-docs/pull/3)
 at commit `493443ed1a414d4d567f88712008d43232ca35ff`.
-PR #3 is an open draft, not an approved or merged database definition.
+That original PR #3 snapshot was reviewed as an open draft, not an approved
+database definition. Publishing its documentation does not implement or approve
+the proposed schema or unresolved product defaults.
 
 ## Confirmed decisions
 
@@ -250,7 +252,13 @@ prior submissions and operator decisions. Applicant-visible reasons and internal
 review notes are separate fields with separate access.
 
 Concurrent decisions use expected-version checks: two reviewers cannot independently
-approve/reject different snapshots of the same Pending version. A retry of the
+approve/reject different snapshots of the same Pending version. Approval atomically
+requires that the company is still Pending, the requested application is still its
+current submission, and the company's concurrency version matches the expected
+version, in addition to operator authorization and the immutable submission/version
+check. A newer current submission or changed company version prevents approval of
+the old submission even when that old submission's own version still matches.
+A retry of the
 same decision returns the original result. Do not let edits silently change an
 application being approved. Self-review, review SLA, edit-while-Pending rules,
 notification channels and resubmission limits remain O03 decisions.
@@ -458,8 +466,8 @@ are separate concerns with an explicit fail/recovery policy.
 
 ## Logical data requirements
 
-The following records and fields are **proposed modeling inputs**, not updates to
-PR #3, EF entities or migrations. IDs, lengths, enum storage, database provider and
+The following records and fields are **proposed modeling inputs** for the aligned
+database catalog, not EF entities or migrations. IDs, lengths, enum storage, database provider and
 physical session tables remain open. UTC times and aggregate concurrency versions
 are suggested conventions. Provider-owned records must follow the selected library.
 
@@ -590,7 +598,7 @@ that any security or product behavior works.
 | T05 | Pending owner candidate directly calls business/invite/member-write APIs | Denied despite frontend routing or claimed owner role (P03) |
 | T06 | Pending C plus approved B on same account | B unaffected; C denied (P03) |
 | T07 | Company admin, ordinary member or forged role calls review API | Denied without explicit platform grant |
-| T08 | Two reviewers decide same version; stale form changes during review | One decision; stale version rejected; owner activated once |
+| T08 | Two reviewers decide same version; company changes state/version or a newer submission replaces the requested one | One decision; non-Pending, mismatched company version or superseded submission rejected without owner activation even if the old immutable submission version matches |
 | T09 | Rejection/edit/resubmission and failed notification delivery | History/reason retained; new reviewed version; no rollback or duplicate effects |
 | T10 | Existing no-membership account receives invite | Pending inbox reachable; no membership until explicit acceptance |
 | T11 | Brand-new invitee joins approved company | No duplicate company form under P01; matching identity required |
@@ -647,28 +655,33 @@ not establish approval of every other proposal in this specification.
 
 ## Existing-document reconciliation
 
-Architecture/navigation summaries link to this specification. The earlier database
-draft itself remains unchanged; its required changes are recorded in the separate
-[database alignment review](../database/identity-alignment-review).
+Architecture/navigation summaries link to this specification. The original database
+snapshot is preserved in history; the [current logical catalog](../database/overview)
+now incorporates the confirmed-rule alignment. The separate
+[database alignment review](../database/identity-alignment-review#documentation-dispositions)
+records documentation dispositions and remaining decisions, not schema approval.
 
 | Source at start of this review | Gap against latest confirmed direction | Disposition |
 | --- | --- | --- |
 | Accounts and authentication | Google described as a method; optional local-credential and many-Google language; generic onboarding; domain features only research | Replaced with current one-Google summary and links to this specification; email-authority policy remains explicit and open |
 | Authentication design flows | No full company application/operator-review state inventory; only limited pending-invite mention | Documentation inventory updated; actual design-file work remains separate |
 | Decision register / ADR-001 | Multi-company and concurrent-account rules remain valid; many-Google cardinality superseded | ADR-002 records onboarding/admin rules; ADR-003 records one-Google cardinality; historical text retained with explicit supersession |
-| Database PR #3: Identity | Optional LocalCredential/challenges, open login-email uniqueness, obsolete many-Google cardinality | Remove local-password implication and multiple-Google support; retain stable identity ownership and add Google-scoped account uniqueness without deciding future-provider cardinality |
-| Database PR #3: Organization | Company Active/Suspended/Archived only; no application/review/owner candidate; no Declined state | Align lifecycle and invitation outcomes after agreement; choose physical naming deliberately |
-| Database PR #3: invitation grants | Proposal defers initial elevated role assignment; invite fields omit final role/evidence policy | Reconcile with O05 and accepted grant default; do not silently treat P04 as approved |
-| Database PR #3: optional domains | No connection/domain catalog yet; Require Google research wording | Keep optional integration separately scoped; domain policy/directory tables only after their design decisions |
+| Database PR #3: Identity | Optional LocalCredential/challenges, open login-email uniqueness, obsolete many-Google cardinality | Current catalog removes local-password/multiple-Google flows, preserves issuer/subject and proposes Google-scoped account uniqueness; future-provider/recovery rules remain open |
+| Database PR #3: Organization | Company Active/Suspended/Archived only; no application/review/owner candidate; no Declined state | Current catalog proposes versioned applications/reviews, candidate separation and complete invitation outcomes; final form/status/default choices still open |
+| Database PR #3: invitation grants | Proposal defers initial elevated role assignment; invite fields omit final role/evidence policy | Explicit conditional role-offer/revalidation model and O05/O07 boundaries documented; P04 remains proposed |
+| Database PR #3: optional domains | No connection/domain catalog yet; Require Google research wording | Logical optional consent/domain/manual-eligibility requirements documented separately; directory-sync schema deferred until scope adopted |
 
 ## Provenance and next step
 
-This documentation change is based on verified docs `main` commit
+The product specification was established in PR #5, based on verified docs `main` commit
 `6962d5d6c82a1f1a19cb1f5fba242a431130e132` and the database
-draft commit identified above. It was not branched from or merged with PR #3.
+draft commit identified above. PR #5 did not import or merge PR #3. The current
+database proposal subsequently incorporates merged specification commit
+`bc2202360adeac9bd06f9d45f4901e859f553cf2` and aligns the catalog without changing
+confirmed product rules or implementing a schema.
 
 Settle P01–P04 and then O01–O15 in manageable product/security batches. Record
 accepted/rejected options with dates and consequences; revise the proposed defaults before
-treating proposed defaults as confirmed. Update designs and the database proposal
-afterward, under separate explicit tasks. This publication does not authorize
+treating proposed defaults as confirmed. Use the aligned catalog for the next model
+review; actual designs and implementation remain separate tasks. This publication does not authorize
 application code, EF models, migrations or design edits.

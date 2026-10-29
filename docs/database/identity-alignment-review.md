@@ -6,9 +6,12 @@ DbContexts, provider configuration, schema, data or migrations were changed.
 The [identity, onboarding and invitations specification](../product/identity-and-company-access)
 is the source of current confirmed product rules. This review evaluates the earlier
 [database design PR #3](https://github.com/Podvysotskyi/worktandem-docs/pull/3)
-at exact head `493443ed1a414d4d567f88712008d43232ca35ff`. At review time it is
-**open and draft**, not approved or merged. This page does not import that branch,
-change its files, approve it or assume its proposals are confirmed.
+at its **original reviewed snapshot** `493443ed1a414d4d567f88712008d43232ca35ff`.
+The original review found an open draft, not an approved/merged model. The catalog
+in this proposal has now been aligned with the merged product specification;
+[documentation dispositions](#documentation-dispositions) distinguish those edits
+from remaining decisions. The original commit/history is preserved. This page does
+not approve the schema, implement it or authorize merging PR #3.
 
 ## Review outcome
 
@@ -31,7 +34,9 @@ The main changes required by confirmed rules are:
    Worktandem account, while preserving issuer/subject ownership and leaving
    non-Google provider cardinality open.
 
-Exact fields, statuses, recovery and synchronization records below are proposals.
+These findings describe that pinned earlier snapshot. Current catalog pages address
+the confirmed-rule gaps while retaining open defaults. Exact fields, statuses,
+recovery and synchronization records below remain proposals.
 The earlier strict-domain/no-guests proposal is superseded by the confirmed manual
 outside-domain invitation rule.
 
@@ -156,6 +161,22 @@ These are future tests, not checks run by this documentation change:
 | Context/revocation | Multiple accounts/tabs preserve actor/company; pending company does not block another approved membership under proposed default; revoked permissions stop within chosen bound |
 | Storage/migrations | Real selected provider enforces keys/FKs/transactions; reviewed initial migration and subsequent upgrade tests; no shared writable service tables |
 
+## Documentation dispositions
+
+**Addressed here means documentation aligned, not a feature implemented or product
+default approved.** Current catalog changes preserve the original proposal's history
+and bring in the merged specification/dependency fixes without rewriting main.
+
+| Original finding | Current catalog disposition | Still open |
+| --- | --- | --- |
+| Optional local credentials and multiple Google identities | [Identity](./identity#externalidentity) removes local-password records and second-Google flow; adds issuer/subject + Google-scoped account uniqueness | Provider/library mapping, active-login consistency, Google replacement/recovery and future-provider cardinality |
+| Missing Pending/review history/owner candidate | [Organization](./organization#companyapplication-and-reviewdecision) adds submitted versions, decisions and applicant-as-candidate proposal; [integrity](./integrity#application-approval-transaction) describes activation transaction | Form fields, lifecycle axes, edits/resubmission/reasons/notification defaults and P01–P03 |
+| Tenant-only authorization statement | [Authorization](./authorization#account-and-platform-query-paths) separates operator paths; [PlatformGrant](./identity#platformgrant) gives a logical owner/model | Bootstrap, MFA/step-up, grant authority and recovery |
+| Invitation discovery, states, role offers and token coupling | [Invitations](./organization#companyinvitation) share one record; optional [link credential](./organization#invitationlinkcredential) does not require token input in-app; current identity proof and race rules documented | P04/O05 lifetime/decline/resend/roles/reinstatement, O06 normalization and O07 third-party-mailbox evidence |
+| Missing manual/domain eligibility interaction | [Manual eligibility](./organization#manual-membership-eligibility) preserves outside-domain manual access; [optional integration](./organization#optional-google-integration-and-domains) separates consent/proof from login | Exception authority/revocation, domain proof/outage rules, future directory scope and independent source representation |
+| Account/platform queries and last-owner boundary | [Integrity](./integrity#tenant-filters-are-defense-in-depth) adds deliberate no-tenant paths; candidate has no active owner grants; activated companies get owner protection | Revocation bounds, cross-service evidence freshness and recovery |
+| Migration model review | [EF gate](./ef-core#model-review-gate) explicitly checks the aligned invariants before entity/migration generation | Provider/version, naming/types/index mapping and implementation approval |
+
 ## Decisions and next revision
 
 The canonical [decision inventory](../product/identity-and-company-access#decisions-to-settle)
@@ -165,7 +186,8 @@ email-evidence/normalization policy, manual eligibility representation, platform
 bootstrap/assurance and session context. Database provider/authentication library
 remain open; choosing EF Core does not choose PostgreSQL or ASP.NET Core Identity.
 
-After agreement, revise the earlier proposal in a separate reviewable change,
-reconcile its status vocabulary and links, and preserve unrelated organization/RBAC
-design work. PR #3 must not be merged as if these gaps were already resolved.
-This review does not approve the full schema or promise production readiness.
+The earlier catalog is now revised in this proposal, with unrelated organization/
+RBAC design preserved. Settle the remaining choices, then review the selected logical
+model before generating entities/migrations. The catalog remains a proposal for
+product/model review; documented dispositions are not approval of its full schema
+or production readiness.
