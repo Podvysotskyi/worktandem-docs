@@ -120,6 +120,35 @@ recovery remain O10/O03 decisions. Do not seed a real operator or infer assuranc
 from Google sign-in, email suffix, hd or a frontend access label. Grant revocation
 affects future actions without deleting historical ReviewDecision records.
 
+## Platform Users management and suspension precedence
+
+**Confirmed:** platform-wide Users list/detail/manage, including global ban, belongs
+to explicit operator authority. Company administrators cannot enumerate/manage all
+platform accounts or globally ban someone through their tenant role. Exact
+capability keys and read/manage/suspend/reinstate split remain open; the backend
+must enforce the relevant authority, not rely on the admin app's route or button.
+
+Global ban uses Account.Status = Suspended with a mandatory nonempty reason and
+actor/time/transition audit. It denies protected operations across that account's
+companies even with Active memberships or valid manual/domain eligibility.
+CompanyMembership.Status remains independent; global suspension is not a mass
+membership update. A company-specific suspension does not globally suspend the
+account or another company's membership.
+
+Reinstating the global account does not unsuspend/rejoin a membership, remove a
+company's own suspension, or recreate revoked tenant/platform grants. Evaluate
+the current independent gates on every protected operation; do not restore a
+pre-ban permission snapshot. The target account's sessions must be invalidated/
+revoked with server-side current-status enforcement. Other independently signed-in
+Worktandem accounts are not merged into that account's ban/session state.
+
+Users detail may expose global status, authorized membership-status metadata and
+transition history under the selected visibility policy; it does not imply broad
+tenant business-data browsing. Editable fields and reason visibility remain O16.
+Self/last-operator/last-company-owner protection and recovery, operator assurance,
+timed suspension and exact revocation bounds remain open O09/O10/O11/O16; do not
+invent automatic expiry/reinstatement or a generic unrestricted account-update API.
+
 ## Authorization acceptance examples
 
 These are future tests, not executed feature verification:
@@ -132,6 +161,10 @@ These are future tests, not executed feature verification:
 | Manual outside-domain member is missing from a directory | Retains explicit manual eligibility and only assigned permissions; suspension still denies |
 | Invite role/scope points to another company, deleted role or stale delegation | No unauthorized grant or automatic reinstatement; safe conflict/reviewed fallback |
 | Same account selects another company; another Worktandem account is signed in | Validate actor/company separately; no union of roles, identities or caches |
+| Active membership but Account.Status = Suspended | Denied in every company; independent membership/grant records unchanged |
+| Reinstated account with one suspended/removed membership or revoked grant | Only current authorized memberships/grants can work; no restoration or tenant-suspension bypass |
+| Company administrator calls Users/global-ban API | Denied; tenant role never implies platform-wide user-management authority |
+| Authorized ban has null/blank reason or forged actor | Denied with no status/history change; successful ban records validated actor/time/reason |
 
 ## Example
 

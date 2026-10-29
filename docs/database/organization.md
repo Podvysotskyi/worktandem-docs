@@ -80,7 +80,7 @@ network notification failure does not reverse an approval.
 | Id | Guid, required, PK | Stable company-member identity |
 | CompanyId | Guid, required, FK Company | Tenant |
 | AccountId | Guid, required, external reference | Worktandem account; no cross-service SQL FK |
-| Status | required enum | Proposed Active, Suspended, Left |
+| Status | required enum | Independent per-company membership state; Active/Suspended/Left names proposed, not a copy of Account.Status |
 | JobTitle | string?, max 200 | Company-specific title; not an access role |
 | JoinedAt | UTC instant, required | First activated membership, through approved owner activation or invitation acceptance |
 | EndedAt | UTC instant? | Current departure state |
@@ -100,6 +100,15 @@ An approved active company's last usable Owner needs transaction-safe protection
 a Pending company intentionally has only an applicant/candidate. Optional domain
 rules honor authorized manual invitation eligibility on later requests; membership
 suspension still denies regardless of eligibility or directory presence.
+
+**Confirmed global-versus-company separation:** platform ban sets Account.Status =
+Suspended and requires a reason/history in Identity. It does not overwrite this
+membership's state or revoke every role by mass update. Each company can retain
+its independent Active/Suspended/Left or separately agreed removal state. Global
+reinstatement re-evaluates these current states; it cannot unsuspend/rejoin a
+membership or recreate grants revoked independently. A company administrator's
+membership-management rights do not include global user banning. Company-level
+reason/history and removal/reinstatement policy remain separately reviewable.
 
 ## CompanyInvitation
 

@@ -23,6 +23,8 @@ for detailed states and future verification.
 | Account versus company switching | Distinct controls; Add Worktandem account authenticates that account's own Google identity; stale context and expired-session states; no second-Google linking action |
 | Account security | Show the single Google identity and Google recovery guidance; prevent removing the only usable login; Google replacement policy remains open |
 | Platform administration | Separate Nuxt operator app; explicit platform permissions, review queue/detail and reason/version-conflict states |
+| Platform Users | Users list/detail/manage; distinguish global Account.Status and per-company membership status; global Suspend dialog requires nonempty reason, handles validation/conflict/success; show retained history only under selected visibility policy |
+| Global reinstatement | Explicit authorized account action; show independently suspended/removed memberships and revoked access without implying automatic restoration; session/reauthentication and reason-visibility policy remain open |
 | Optional Google integration | Separate API consent and optional domains; manual outside-domain invitations and subsequent permitted member access remain available |
 
 ## Interaction requirements
@@ -42,11 +44,19 @@ for detailed states and future verification.
   directory sync is later adopted; a missing directory entry must not erase it.
 - Keep the Google third-party-email evidence policy visibly unresolved rather than
   drawing an adopted OTP or email-only login flow.
+- Label global ban as an account-level suspension, separate from company membership
+  suspension. Require reason/description in the global-ban flow and communicate
+  server validation/version failures. Exact editable profile fields, timed bans,
+  reason visibility and self/last-operator/last-owner safeguards remain undecided.
+- A global ban blocks protected access across companies without changing their
+  membership states. Reinstatement must not visually promise restored memberships,
+  revoked roles or revoked sessions. Minimal suspended-account screens remain open.
 
 ## Review checklist
 
 Review against [ADR-002](../architecture/decisions#adr-002-google-only-onboarding-invitations-and-platform-review),
 [ADR-003](../architecture/decisions#adr-003-one-google-identity-per-worktandem-account),
+[ADR-004](../architecture/decisions#adr-004-platform-users-and-independent-suspension-statuses),
 the canonical specification and its decision inventory. Confirm loading, empty,
 error, declined/revoked/expired, already-member, wrong-identity and suspension states.
 Proposed expiry, decline, role defaults and form requirements need product agreement.

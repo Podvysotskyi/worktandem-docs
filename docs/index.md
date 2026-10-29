@@ -35,3 +35,8 @@ open choices marked. The [database alignment review](./database/identity-alignme
 preserves the earlier proposal's findings and links to their current documentation
 dispositions. The [database catalog](./database/overview) remains a proposed logical
 model for review, with no implemented entities or migrations.
+
+The [platform Users and suspension rules](./product/identity-and-company-access#global-user-suspension-and-company-status)
+define global banning through Account.Status, required reasons/audit and independent
+company membership states. [ADR-004](./architecture/decisions#adr-004-platform-users-and-independent-suspension-statuses)
+records the decision and remaining policy choices.

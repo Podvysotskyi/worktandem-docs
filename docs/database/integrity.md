@@ -9,6 +9,7 @@ must be implemented and tested before the schema is considered ready.
 | --- | --- | --- |
 | Account → Google ExternalIdentity | 0..1 in storage; exactly one usable login for active Google-only account | Identity-local FK, global issuer/subject ownership and Google-scoped account uniqueness; future-provider cardinality open |
 | Account → PlatformGrant | 1 to many capability grants | Identity/platform-access-local FK; no tenant role inheritance |
+| Account → status transition history | 1 to many immutable transitions proposed | Account/actor-local references; atomic status + audit; mandatory nonempty global-suspension reason |
 | Account → CompanyMembership | 1 to many across services | External AccountId reference, no SQL FK |
 | Company → CompanyApplication → ReviewDecision | 1 to many submitted versions; at most one terminal decision per submission proposed | Same-company FKs; immutable reviewed version; authorized platform proof by contract |
 | Application → applicant account | One owner candidate reference, not active membership | External account contract; activation only through approved review workflow |
@@ -85,6 +86,11 @@ Account deletion is an orchestrated lifecycle, not a cross-service cascade. It n
 membership cleanup, last-owner recovery, identity/session revocation and the
 agreed retention/anonymization policy. Do not promise immediate physical erasure or
 retain personal identity profile snapshots forever without that policy.
+
+Global account-status history retains actor/time/reason and before/after transitions
+under that policy; account or actor deletion must not silently cascade it away.
+Reason visibility/anonymization and precise retention remain open. Do not duplicate
+global ban state as IsBanned or erase membership history to simulate a global ban.
 
 There is no universal soft-delete base class in the proposal. Authentication revocation,
 membership departure, archive status, and legal retention are different behaviors.
@@ -165,6 +171,42 @@ one source does not destroy another. Neither directory events nor consent refres
 reactivates an explicit suspension. Optional domain checks honor accepted manual
 outside-domain membership at later access, not merely at invitation consumption.
 
+### Global account suspension and reinstatement
+
+**Confirmed:** Account.Status = Suspended is global ban, requires a nonempty reason/
+description, and overrides company access without changing CompanyMembership.Status.
+Reinstatement cannot recreate separately suspended/removed memberships or revoked
+grants. Keep account state, company state, membership state and role eligibility
+as independent checks, rather than writing a global status into every membership.
+
+**Proposed owning transaction:** validate an active authorized platform actor,
+expected Account.Version and current state; reject null/empty/whitespace-only ban
+reason; atomically update Account.Status/Version and append actor/time/reason plus
+before/after transition history. Persist required revocation/delivery intent with
+the change using the selected library/service contracts; do not claim a distributed
+transaction over session stores or Organization. Scope idempotency to the actor,
+target, operation and payload; retries return the recorded outcome without lost
+history, duplicate transitions or silently changing the original reason.
+
+Concurrent suspend/reinstate/profile updates must not overwrite newer state. Keep
+status commands out of unrestricted profile-field updates; the editable allowlist
+is open. No Organization membership/role mutation is part of the global ban or
+reinstatement transaction. Reinstatement checks current state and does not replay
+an old membership/role snapshot or revive revoked sessions automatically.
+
+Enforce global status at protected endpoints, including platform actions, and
+invalidate/revoke the target account's sessions, caches and subscriptions under a
+defined contract. Queued/background work must not borrow stale eligibility. An
+invalidation event or client status label alone is insufficient proof of denial.
+Exact session mechanism, authority freshness, cross-service propagation bound and
+reauthentication behavior remain O09/O11 choices. A global ban of one account does
+not silently merge/ban other Worktandem accounts in the same browser.
+
+O16 keeps profile fields, reason visibility, timed bans, reinstatement reason and
+limited suspended-account surfaces open. Self/last-operator and last-company-owner
+recovery need O09/O10/O16 decisions; do not invent a self-ban exemption or silently
+transfer ownership to make suspension appear safe.
+
 ## Audit, outbox and projections
 
 These concerns are distinct and are **not all initial business entities**:
@@ -201,3 +243,7 @@ These are planned tests, not checks already executed by this documentation chang
 | Request context | Account/company/tab switches cannot rebind queued writes or leak cached data; revocation stops access within agreed bound; account-level routes do not require a fake tenant |
 | Structure/lifecycle | Department/manager cycles rejected; scope unions do not widen grants; concurrent owner changes cannot orphan an activated company; restrict deletion preserves required history |
 | Provider/operations | Real-provider FK/index/transaction checks, raw SQL/bulk/admin bypass tests, notification deduplication and audit/secret review; no EF InMemory-only claim of relational integrity |
+| Global versus membership status | Global suspension denies Active memberships across companies without changing them; company-specific suspension denies only that membership; manual/domain eligibility cannot override global ban |
+| Reinstatement | Global status transition does not unsuspend/restore removed memberships, bypass company suspension or recreate revoked grants/sessions; current gates are re-evaluated |
+| Ban reason and history | Null/empty/whitespace ban reason and forged actor fail without effects; successful transition records server actor/time/reason and before/after state; retries do not rewrite history |
+| User-management races and revocation | Company admin cannot perform global Users/ban operations; concurrent status/profile commands use expected version; stale sessions/tabs/jobs fail under the explicitly selected revocation contract |

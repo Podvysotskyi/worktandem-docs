@@ -24,7 +24,7 @@ preserves findings against the original PR #3 commit and records their documenta
 
 | Proposed owner | Owns | Does not own |
 | --- | --- | --- |
-| Identity/platform access | Accounts, single Google association, session/evidence requirements, explicit platform grants | Company memberships, company RBAC or company-review decisions |
+| Identity/platform access | Accounts, global status/transition history, single Google association, session/evidence requirements, explicit platform grants | Company memberships, company RBAC or company-review decisions |
 | Organization | Companies, versioned applications/reviews, owner candidates, memberships, invitations, manual eligibility, structure, roles and module configuration | Google login credentials, platform grants or another service's writable entities |
 | Google integration capability | Separate company API consent, protected secret references, domain-control evidence and optional policy | Login authority, automatic owner/platform rights or implicit directory provisioning |
 | Future business services | Their own company-owned leads/customers/tasks | Another service's database or EF model |
@@ -52,6 +52,7 @@ PostgreSQL remains a candidate; selecting EF Core does not select a database eng
 | Many company memberships and concurrent Worktandem accounts | Unique company/account membership; separately revocable account sessions; no Account.CurrentCompanyId authority |
 | New self-service company Pending until manual platform approval | Company lifecycle + immutable submitted application versions + review decisions; separate owner candidate until activation |
 | Company administration is not platform administration | Tenant-scoped roles and explicit platform capability grants have independent checks/storage ownership |
+| Platform Users/global ban with independent company statuses | Account.Status = Suspended and mandatory reason + actor/time/history; proposed atomic status/history model; no IsBanned or mass membership-status update; reinstatement cannot restore independently revoked access |
 | Any-email invitations, in-app discovery and matching verified Google acceptance | One invitation for both entry points; current server-validated identity evidence; optional email-link credential, not required by the in-app route |
 | Manual outside-domain invitations remain usable with Google integration | Auditable manual membership eligibility honored on later access; suspension and RBAC still override |
 | Optional Google/domain configuration | Separate consent/domain-control evidence; directory-sync eligibility records only if sync is adopted |
@@ -98,6 +99,7 @@ proposed P03, not a global account flag.
 | Email evidence | O06/O07: conservative normalization, freshness, changed/reassigned mailbox; no different-email OTP or invented same-address proof policy |
 | Optional integration/domain policy | O08: proof, manual eligibility/revocation, consent outage and directory behavior; no strict no-guests policy |
 | Sessions/operator assurance | O09–O11: per-tab/cross-app context, expiry/revocation bounds, bootstrap/MFA/recovery |
+| User management policy | O16: editable fields, reason visibility, timed bans, reinstatement reason, suspended-account surface, self/last-operator/last-owner recovery; confirmed global status/reason is separate from these open choices |
 | Privacy and retention | O12: enumeration/rate-limit budgets, audit retention/erasure, slug reuse |
 | Structure and scopes | Multiple departments/one optional primary/one direct manager, explicit scope bindings and direct-department-only scope remain proposals |
 | Physical mapping | IDs, naming, enum storage, indexes, filtered-key support, provider collations and service boundaries require review |

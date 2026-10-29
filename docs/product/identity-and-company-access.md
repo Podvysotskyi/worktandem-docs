@@ -48,6 +48,9 @@ the proposed schema or unresolved product defaults.
 | C12 | Authorization uses company-scoped RBAC | A manager title, team, domain or enabled module does not itself grant permission |
 | C13 | EF Core code-first and migrations are the persistence direction | This specification describes logical requirements; it does not generate entities or migrations |
 | C14 | Optional Google integration/domain controls still allow explicit manual invitations to outside-domain addresses | An accepted authorized manual invitation permits the matching Google identity to join and use the company; a domain check must not later undo that exception |
+| C15 | Platform administrators have a Users list/detail/manage capability, including global ban | Company administrators do not gain platform-wide user-management rights |
+| C16 | Global ban uses Account.Status = Suspended and requires a nonempty reason/description | No separate IsBanned flag; audit actor/time/reason and retain status-transition history |
+| C17 | Each CompanyMembership has its own independent status | Global suspension denies access across companies without overwriting those states; reinstatement does not restore separately suspended/removed memberships or revoked grants |
 
 Company-invitation UI was previously proposed to show company, inviter, expiry,
 Accept/Decline and a company-switcher badge. These presentation details, decline
@@ -79,7 +82,7 @@ Architecture direction:
 | Integration capability | Company Google consent, domain evidence, connection health and directory operations if adopted | May begin in an appropriate existing service; no speculative new service required |
 | Business services | Their own company-owned business data and authorization checks | Must not treat frontend context or gateway routing as access authority |
 | Thin Gateway/BFF | Session-facing orchestration and routing | Does not own memberships, approvals or domain models |
-| Platform-admin Nuxt app | Operator review queue and platform controls | Separate from company app; backend checks are mandatory |
+| Platform-admin Nuxt app | Operator review queue, Users list/detail/manage and platform controls | Separate from company app; backend checks are mandatory |
 
 API → Application → Domain, with Infrastructure implementing Application ports.
 Each owning service controls its persistence and migrations. Cross-service IDs do
@@ -241,7 +244,9 @@ business decision, not a freely writable status field.
 **Proposed P03:** a Pending/rejected company must not block the same account's
 other approved memberships. The block is company-specific, not a blanket account
 onboarding flag. A zero-approved-membership account still gets account settings,
-invitation and status surfaces. A separate account suspension overrides all access.
+invitation and status surfaces for an otherwise eligible account. A separate global
+account suspension denies protected operations; limited suspended-account status/
+appeal surfaces remain open O16.
 
 ### Platform review workflow
 
@@ -389,7 +394,13 @@ long-lived JWT expiry. Owner removal must preserve an authorized recovery path.
 It is not the existing company-admin workspace. Its routes/host/deployment and
 shared-session details are open; no new app is scaffolded by this specification.
 
-**Proposed initial capabilities:** list/review company applications; approve/reject
+**Confirmed user management:** the platform-admin app includes a Users list,
+individual user details and authorized management actions, including global ban.
+The API requires the appropriate explicit platform grant; a company-admin/Owner
+role alone grants no access to these platform-wide queries or actions. Exact
+capability keys and editable profile fields remain open.
+
+**Proposed review capabilities:** list/review company applications; approve/reject
 the submitted version with audit; view company status and relevant operational
 history; explicitly authorized suspension/reinstatement. Operator grants should
 name capabilities, not confer implicit unrestricted tenant-data access. Do not
@@ -407,6 +418,50 @@ recent strong authentication for sensitive operations, and an independently
 controlled recovery process. Do not infer MFA from a Google logo or `hd`; verify
 what assurance claims and controls the chosen Google integration actually supports.
 No operator emails, credentials or bootstrap secrets belong in documentation.
+
+### Global user suspension and company status
+
+**Confirmed:** global ban is `Account.Status = Suspended`, with a mandatory nonempty
+reason/description. Do not add a second `IsBanned` source of truth. Record the
+authorized actor, time, reason and before/after status in retained transition
+history. Whitespace-only input does not meet the nonempty-reason requirement;
+validate at the server, not just on the dialog.
+
+Account status and each Company's CompanyMembership.Status are independent. A
+globally suspended account is denied protected company access everywhere even if
+its memberships are Active or its manual outside-domain eligibility remains valid.
+Do not mass-update membership statuses or delete their grants when globally banning
+the account. A company-level suspension affects only that company's membership;
+it neither globally bans the account nor changes another company's membership.
+
+Reinstatement changes the account's global state through an authorized transition.
+It must re-evaluate current company, membership, eligibility and permission state;
+it does not activate separately Suspended/Left/removed memberships, undo company
+suspension, or recreate revoked tenant/platform grants. Do not use a pre-ban snapshot
+to restore privileges. Company approval and the existing tenant RBAC gates remain.
+
+**Proposed consistency plan:** compare the expected Account.Version and prior state,
+then atomically persist status + actor/time/reason transition history in the owning
+Identity transaction. Keep retries idempotent without hiding history, replacing a
+reason or emitting duplicate side effects. Competing suspend/reinstate/profile edits
+must not silently overwrite a newer status. Prevent generic profile updates from
+mass-assigning Status; allowable editable fields need a separate decision.
+
+Account suspension must invalidate/revoke affected account sessions and prevent
+stale cookies, tokens, caches, subscriptions, queued jobs or another tab from
+continuing protected actions. Apply server-side status checks and an explicit
+revocation/invalidation contract; a client-only ban screen or waiting for refresh
+is insufficient. Reinstatement is not automatic revival of revoked sessions.
+Mechanism, propagation bound, reauthentication/session behavior and cross-service
+timing guarantees remain O09/O11 decisions, not a claimed implementation.
+
+**Open O16:** editable fields, user/reviewer visibility of reasons, timed suspensions,
+whether reinstatement needs a separate reason, minimal suspended-account status/
+appeal surfaces, self/last-operator safeguards and last-company-owner recovery.
+Do not infer bulk deletion, impersonation, timed auto-unban or unrestricted profile/
+identity editing from the word Manage. O10 operator assurance and recovery also apply.
+See [account-state data](../database/identity#account-status-transition-history) and
+[suspension consistency](../database/integrity#global-account-suspension-and-reinstatement).
 
 ## Optional company Google API integration
 
@@ -473,7 +528,8 @@ are suggested conventions. Provider-owned records must follow the selected libra
 
 | Record / owner | Proposed information and constraints |
 | --- | --- |
-| Account / Identity | Stable Id, display/contact fields, status, creation/update/version; no authoritative CurrentCompanyId, password, company role or unique-email assumption |
+| Account / Identity | Stable Id, display/contact fields, Status with Suspended used for global ban, creation/update/version; no redundant IsBanned, authoritative CurrentCompanyId, password, company role or unique-email assumption |
+| Account status transition / Identity | Proposed immutable account/actor references, before/after status, occurred time, reason and idempotency/version correlation; nonempty reason required for global suspension; physical storage/retention open |
 | ExternalIdentity / Identity | AccountId, provider, canonical Issuer, case-sensitive Subject, observed email/verified/hd, observed/authenticated times, association version; global unique (Issuer, Subject), plus Google-scoped uniqueness of AccountId so one account cannot hold two Google identities; future-provider cardinality open |
 | AccountSession / Identity | AccountId, identity/evidence reference, authentication time/assurance, created/expires/revoked times, context/version as selected; no exposed bearer values |
 | PlatformGrant / Identity capability | AccountId, capability, grant/revoke actor/time, status/version; tenant roles cannot create these grants |
@@ -581,7 +637,7 @@ later design work, not a statement that any mockup has been updated:
 | Invitation detail | Email/in-app entry, explicit accept, identity mismatch, account chooser, already member, revoked/expired/replayed |
 | Account/company controls | Distinct switchers, Add Worktandem account with its own Google identity, pending badge, stale session and revoked context; no add-second-Google action |
 | Account security | Single Google identity and recovery guidance; no second-Google linking or unrestricted unlink/relink; replacement policy remains open |
-| Platform admin | Separate operator sign-in/access-denied, review queue/detail, version conflict, approve/reject reason and audit |
+| Platform admin | Separate operator sign-in/access-denied; review queue/detail; Users list/detail/manage; global Suspend dialog with required reason, validation, conflict/success and reinstatement; distinct global/membership statuses and audit visibility under selected policy |
 | Optional Google integration | Separate consent, domain verification, policy conflict, denied/revoked scope, owner-lockout prevention |
 
 ## Acceptance matrix for future implementation
@@ -617,6 +673,11 @@ that any security or product behavior works.
 | T24 | Consent denied/revoked or directory outage; last owner would be blocked | Login/integration separated; explicit recovery and policy behavior |
 | T25 | Account enumeration, invite spam, malicious return URL, forged callback | Privacy/rate limits, safe return destinations, signature/audience/issuer/expiry and CSRF/replay checks |
 | T26 | Notification retries, audit inspection, log/token review | One business effect; authorized traceable audit; no raw reusable secrets |
+| T27 | Global ban of account with Active and separately Suspended/Left memberships in different companies | Account.Status becomes Suspended with recorded actor/time/nonempty reason; all protected company access denied; membership states and grants remain unchanged |
+| T28 | Reinstate globally suspended account after separate membership suspension/removal, company suspension or grant revocation | Only global state changes; current independent gates still deny where applicable; no membership/grant/session restoration from an old snapshot |
+| T29 | Empty/whitespace suspension reason, forged actor/status/profile write or company admin calls Users/ban API | Server rejects invalid reason or unauthorized action with no status/history mutation; authorized transitions retain correct actor/time/reason and before/after history |
+| T30 | Concurrent suspend/reinstate/profile update, duplicate retry and stale tabs/tokens/jobs | Version conflict/idempotency prevents lost history/duplicate effects; status checks and chosen revocation contract prevent continued protected access; exact timing follows open decisions |
+| T31 | A company membership is suspended while another is Active; a different Worktandem account is signed in in the same browser | Only the relevant company's membership is affected by its suspension; global ban of the target account does not merge or ban the separate signed-in account |
 
 ## Decisions to settle
 
@@ -652,6 +713,7 @@ not establish approval of every other proposal in this specification.
 | Before design/schema changes / O13 | Existing design/database draft reconciliation | Follow the linked database review; preserve historical ADR; separately revise PR #3 after decisions; do not imply merge |
 | Future scope / O14 | Other providers, their cardinality/linking rules, transfers/merges and provider migration | General issuer/subject model; one-Google rule does not decide non-Google cardinality; provider-specific proof/matching/assurance before enabling; no local-password inference |
 | Before migrations / O15 | Physical provider/library, entity mapping and service boundaries | Map these requirements to selected authentication/session library and service-owned EF models; do not hand-roll duplicate credential tables |
+| Before user-management implementation / O16 | Editable fields, reason visibility, timed bans, reinstatement reason, suspended-account surface and self/last-operator/last-owner safeguards | Keep Account.Status authoritative, require a ban reason, protect independent membership states and audit history; choose remaining policy explicitly with O09–O11, no timed auto-unban assumed |
 
 ## Existing-document reconciliation
 
@@ -680,7 +742,7 @@ database proposal subsequently incorporates merged specification commit
 `bc2202360adeac9bd06f9d45f4901e859f553cf2` and aligns the catalog without changing
 confirmed product rules or implementing a schema.
 
-Settle P01–P04 and then O01–O15 in manageable product/security batches. Record
+Settle P01–P04 and then O01–O16 in manageable product/security batches. Record
 accepted/rejected options with dates and consequences; revise the proposed defaults before
 treating proposed defaults as confirmed. Use the aligned catalog for the next model
 review; actual designs and implementation remain separate tasks. This publication does not authorize

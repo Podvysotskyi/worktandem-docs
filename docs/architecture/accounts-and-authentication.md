@@ -83,6 +83,18 @@ Platform operators use a separate Nuxt administration application with explicit
 platform grants, separate from tenant RBAC. A company owner or email domain does
 not become a platform administrator.
 
+The platform app includes Users list/detail/manage and global ban. Ban sets
+Account.Status = Suspended with a mandatory nonempty reason/description and
+actor/time/transition history; there is no redundant IsBanned flag. Each company
+membership retains an independent status. Global suspension blocks protected
+company access everywhere without overwriting membership states, and reinstatement
+does not restore separately suspended/removed memberships or revoked grants.
+Company administrators cannot perform global user management through tenant roles.
+Sessions must be invalidated/revoked with server-side status enforcement; exact
+mechanism/propagation timing, editable fields, reason visibility and recovery
+safeguards remain open. See the [suspension rules](../product/identity-and-company-access#global-user-suspension-and-company-status)
+and [ADR-004](./decisions#adr-004-platform-users-and-independent-suspension-statuses).
+
 Company-domain configuration is optional and belongs to optional Google API
 integration with separate consent. It is not a corporate-email admission requirement.
 **Even with integration/domain controls enabled, authorized manual outside-domain
