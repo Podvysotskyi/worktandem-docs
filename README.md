@@ -30,8 +30,9 @@ Deployment is intentionally not configured; CI builds the site but does not publ
 ## Dependency compatibility
 
 VitePress remains pinned to stable `1.6.4`. A version-scoped npm override selects
-Vite `6.4.4` instead of its declared Vite 5 dependency to address the current
+Vite `6.4.5` instead of its declared Vite 5 dependency to address the current
 [Vite development-server advisories](https://github.com/advisories/GHSA-587h-7wmj-h5pm).
+Vite 6.4.5 also fixes the [6.4.4 file-deny bypass](https://github.com/vitejs/vite/security/advisories/GHSA-8g5g-mxqh-grgj).
 The lockfile also resolves esbuild `0.25.12`, which includes the
 [development-server CORS fix](https://github.com/evanw/esbuild/security/advisories/GHSA-67mh-4wv8-2f99).
 

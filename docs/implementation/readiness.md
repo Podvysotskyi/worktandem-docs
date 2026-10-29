@@ -274,10 +274,14 @@ names describe intent, never real values. Missing setup/Google/DB configuration
 fails closed; .env examples are not automatic configuration loading. Migration
 application is a controlled job, not startup DDL from every API replica.
 
-Tooling follow-up: the preserved Vite 6.4.4 docs override is now reported by npm
-audit under [GHSA-8g5g-mxqh-grgj](https://github.com/advisories/GHSA-8g5g-mxqh-grgj).
-Its dependency chain is not audit-clean. This task preserves the requested pins;
-review a separate tooling update rather than silently running audit fix.
+Tooling validation (2026-10-29): the VitePress 1.6.4-scoped override now selects
+Vite 6.4.5, fixing the [6.4.4 file-deny bypass](https://github.com/vitejs/vite/security/advisories/GHSA-8g5g-mxqh-grgj).
+Node 26 npm ci/audit/build, rendered links and loopback dev/production-preview HTTP checks
+pass; npm audit reports zero vulnerabilities at this check. No unrelated dependency
+versions changed. Retain the documented compatibility override until an upstream
+VitePress upgrade removes its need; this result is not a permanent security guarantee.
+The loopback preview check uses Vite CLI with an explicit host; VitePress 1.6.4's
+preview command does not honor `--host`.
 
 Approved desktop design baseline: Penpot file
 `dfe56358-c92b-8141-8008-dca07ba00319`, page
