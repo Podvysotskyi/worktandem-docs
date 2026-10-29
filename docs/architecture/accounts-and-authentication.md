@@ -50,19 +50,29 @@ Frontend routing and module switches grant no permission.
 
 Partition caches/queries/subscriptions by account + company where applicable. Preserve
 an operation's original actor/company; cancel/discard stale responses or queued work
-on switching. Active-tab, cookie and cross-Nuxt-app session mechanics remain open.
+on switching. E04/E11 select cookie-bound server sessions, per-tab selectors, live
+status checks and explicit revocation semantics for the first slice; deployment
+transport/key configuration is still required.
 Sign out current account and sign out all Worktandem accounts are distinct operations.
 See [sessions and authorization](../product/identity-and-company-access#sessions-account-switching-and-authorization).
 
 ## Google sign-in and registration
 
-New self-service registration requires Google authentication and a company-creation
+Ordinary self-service registration after setup requires Google authentication and a company-creation
 form. The company starts Pending and requires manual platform approval before its
-business product is available. Exact form fields, applicant-owner activation details
-and resubmission rules are marked proposed in the canonical specification.
+business product is available. The [readiness register](../implementation/readiness)
+selects first-slice engineering defaults for form/review/session behavior.
 
-A separate invitation-join path without duplicate company creation is proposed, not
-yet confirmed. A company administrator can invite any email; accepting requires the
+The first registered account instead uses the entered server-environment setup
+secret and validated temporary Google proof to become platform owner/admin in a
+serialized one-time transaction. Normal registration is closed until setup finishes;
+deleting users never reopens it. That owner need not create/join a company, but may
+apply later without self-approval or automatic business access. See
+[bootstrap](../implementation/readiness#one-time-platform-bootstrap).
+
+A separate invitation-join path without duplicate company creation is selected as
+the later-slice engineering default. O07 evidence remains a gate before acceptance
+is enabled. A company administrator can invite any email; accepting requires the
 currently authenticated Google identity's verified email to match the invited
 address. Existing users must see and accept pending invitations in the app.
 On mismatch, switch to the matching identity's Worktandem account or start that
@@ -75,7 +85,7 @@ flow-bound CSRF/replay defenses. See
 For non-Gmail identities without Workspace `hd`, `email_verified` alone may not
 establish current mailbox control. The
 [email-evidence policy](../product/identity-and-company-access#email-authority-question)
-is explicitly open; do not invent an email-only login or different-email fallback.
+is explicitly scoped to that later slice; do not invent an email-only login or different-email fallback.
 
 ## Platform administration and optional Google integration
 
@@ -92,7 +102,8 @@ does not restore separately suspended/removed memberships or revoked grants.
 Company administrators cannot perform global user management through tenant roles.
 Sessions must be invalidated/revoked with server-side status enforcement; exact
 mechanism/propagation timing, editable fields, reason visibility and recovery
-safeguards remain open. See the [suspension rules](../product/identity-and-company-access#global-user-suspension-and-company-status)
+safeguards follow selected engineering defaults and explicit owner-review gates in
+readiness. See the [suspension rules](../product/identity-and-company-access#global-user-suspension-and-company-status)
 and [ADR-004](./decisions#adr-004-platform-users-and-independent-suspension-statuses).
 
 Company-domain configuration is optional and belongs to optional Google API

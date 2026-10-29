@@ -6,6 +6,11 @@ The [canonical product specification](../product/identity-and-company-access) is
 source of current confirmed rules and marks proposals/open choices. Earlier visual
 drafts may predate these decisions and do not override them. Apply confirmed rules
 and settle relevant proposals before revising actual designs.
+Use the approved Penpot file `dfe56358-c92b-8141-8008-dca07ba00319`, page
+`40725179-241f-80d5-8008-dcc0d0e0eabc`, revision 53 as the desktop baseline: hybrid
+navy enterprise styling and structured topbar/rail navigation. The
+[readiness handoff](../implementation/readiness#environment-and-design-handoff)
+records required deltas, not edits performed to that prototype.
 
 ## Desktop scope
 
@@ -17,14 +22,16 @@ for detailed states and future verification.
 | Flow | Current design requirement |
 | --- | --- |
 | Sign-in and registration | Google only; chooser/cancel/provider error; no local password login/signup/recovery |
-| New self-service company | Company form, Pending status and manual approval gate; exact fields and rejection/resubmission defaults remain proposed |
+| One-time setup | Temporary Google proof followed by entered server-env secret; invalid/missing/throttled/closed setup; no permanent account before atomic owner creation |
+| Operator without company | Platform home with own grants and optional create-company action; no forced company form, implicit tenant membership or first-owner self-review exception |
+| New self-service company | Company form, Pending status and manual approval gate; E06/E07 select initial fields and rejection/resubmission defaults |
 | Invitation join | Matching verified Google email, explicit acceptance, in-app pending invitation access including no-company accounts; no different-email OTP |
-| Invitee onboarding | Separate join path without duplicate company creation is proposed; do not treat it as separately approved |
+| Invitee onboarding | E08 selects a later join path without duplicate company creation as an engineering default; O07 still gates acceptance |
 | Account versus company switching | Distinct controls; Add Worktandem account authenticates that account's own Google identity; stale context and expired-session states; no second-Google linking action |
 | Account security | Show the single Google identity and Google recovery guidance; prevent removing the only usable login; Google replacement policy remains open |
 | Platform administration | Separate Nuxt operator app; explicit platform permissions, review queue/detail and reason/version-conflict states |
-| Platform Users | Users list/detail/manage; distinguish global Account.Status and per-company membership status; global Suspend dialog requires nonempty reason, handles validation/conflict/success; show retained history only under selected visibility policy |
-| Global reinstatement | Explicit authorized account action; show independently suspended/removed memberships and revoked access without implying automatic restoration; session/reauthentication and reason-visibility policy remain open |
+| Platform Users | Users list/detail/DisplayName editing; distinguish global Account.Status and per-company membership status; later Suspend dialog requires nonempty reason and conflict/error states; public status writes remain backend-gated pending ownership safety |
+| Global reinstatement | Later authorized action; no automatic restoration of independently revoked memberships/grants/sessions; E11 requires new sign-in, with internal reasons initially and recovery policy gated |
 | Optional Google integration | Separate API consent and optional domains; manual outside-domain invitations and subsequent permitted member access remain available |
 
 ## Interaction requirements
@@ -33,13 +40,13 @@ for detailed states and future verification.
   Worktandem account switcher or company selector.
 - Do not imply membership from a Google address/domain, an invitation view, a
   configured integration or a module toggle.
-- Show Pending/invitation/account screens without business access. Other approved
-  company access remaining available while one company is Pending is a proposed
-  invariant awaiting confirmation.
+- Show Pending/invitation/account screens without business access. E07 keeps other
+  approved company memberships accessible while one company is Pending.
 - On invitation mismatch, switch to the matching Google identity's Worktandem account
   or start its own registration if new; no second-Google attachment or email-based merge.
-- Distinguish sign out current versus all Worktandem accounts; avoid promising global
-  cross-tab switching until session mechanics are selected.
+- Distinguish sign out current versus all accounts in the browser container; E04
+  selects per-tab active context, with shared revocation but no automatic cross-tab
+  actor/company switch.
 - Show manual outside-domain eligibility separately from directory membership if
   directory sync is later adopted; a missing directory entry must not erase it.
 - Keep the Google third-party-email evidence policy visibly unresolved rather than

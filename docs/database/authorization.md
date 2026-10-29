@@ -65,7 +65,7 @@ TeamId does not establish that relationship. This schema is not generic ABAC.
   where relevant, and a matching permission/scope. Module availability alone grants nothing.
 - Reserved Owner role is company-scoped only; an activated approved company needs
   at least one usable active owner. Pending applications intentionally have a
-  candidate, not an Active owner membership. Proposed P03 approval activates the
+  candidate, not an Active owner membership. Selected E07 approval activates the
   candidate and Owner grant together with company/review state in Organization.
   Role removal, membership suspension/departure and account suspension workflows must
   preserve/recover ownership under a defined policy. This is a multi-row and potentially
@@ -82,8 +82,8 @@ TeamId does not establish that relationship. This schema is not generic ABAC.
 
 Any-email invitations and their authenticated in-app entry point use the same
 invitation record. Issue/revoke/resend needs the relevant company permission;
-proposed P03 disallows these operations for Pending companies. Proposed P04 role
-offers remain within current inviter delegation and are revalidated at acceptance.
+E07 disallows these operations for Pending companies. Later E08 role offers remain
+within current inviter delegation and are revalidated at acceptance.
 No invite grants platform authority or reinstates a suspended/removed member's
 former privileges. An already-active member is not silently promoted by a stale offer.
 
@@ -105,7 +105,7 @@ and tenant RBAC still override both eligibility paths. Module availability grant
 Account settings, onboarding/status and pending-invitation discovery are deliberately
 account-authorized paths without an approved tenant. Return only the authenticated
 account's relevant data using current identity proof; do not expose a general email
-lookup or use an arbitrary CompanyId to bypass normal filters. Proposed P03 keeps
+lookup or use an arbitrary CompanyId to bypass normal filters. E07 keeps
 other approved company memberships usable while one company is Pending.
 
 The separate Nuxt operator app calls platform endpoints with a valid account/session,
@@ -114,9 +114,15 @@ It need not borrow a tenant membership. Company review uses the submitted compan
 and application version, with validated platform authority before the Organization
 transaction. Internal review notes and operational evidence have separate read
 permissions. Platform grants do not automatically confer tenant business-data access.
+The initial platform owner receives explicit owner/admin grants only through the
+[one-time secret-protected bootstrap](../implementation/readiness#one-time-platform-bootstrap).
+Company creation/membership is optional for platform operation; applying for a
+company later still requires a different authorized reviewer. Empty account count,
+email/domain, tenant role or a setup-page visit never grants platform authority.
 
-Bootstrap, grant/revoke authority, MFA/step-up, self-review and emergency operator
-recovery remain O10/O03 decisions. Do not seed a real operator or infer assurance
+E05 selects bootstrap; E07 denies self-review; E12 selects privileged-assurance
+defaults for owner review, with controlled recovery/rollout still gated. Do not seed
+a real operator or infer assurance
 from Google sign-in, email suffix, hd or a frontend access label. Grant revocation
 affects future actions without deleting historical ReviewDecision records.
 
@@ -144,10 +150,13 @@ Worktandem accounts are not merged into that account's ban/session state.
 
 Users detail may expose global status, authorized membership-status metadata and
 transition history under the selected visibility policy; it does not imply broad
-tenant business-data browsing. Editable fields and reason visibility remain O16.
-Self/last-operator/last-company-owner protection and recovery, operator assurance,
-timed suspension and exact revocation bounds remain open O09/O10/O11/O16; do not
-invent automatic expiry/reinstatement or a generic unrestricted account-update API.
+tenant business-data browsing. E04/E11 select per-tab server-session context,
+revocation/new-sign-in semantics and live status checks; E12 scopes
+privileged assurance before rollout. DisplayName-only editing and internal reasons
+are the engineering defaults, with no timed bans or generic unrestricted account
+update. Recovery/ownership coordination remains scoped O09/O10/O16. Public global status/removal writes remain
+server-disabled pending ownership coordination, including direct API calls; no
+UI-only owner filter or unavailable authority can bypass that gate.
 
 ## Authorization acceptance examples
 

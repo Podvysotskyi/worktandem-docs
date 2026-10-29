@@ -40,3 +40,8 @@ The [platform Users and suspension rules](./product/identity-and-company-access#
 define global banning through Account.Status, required reasons/audit and independent
 company membership states. [ADR-004](./architecture/decisions#adr-004-platform-users-and-independent-suspension-statuses)
 records the decision and remaining policy choices.
+
+Start implementation planning from [First-slice readiness](./implementation/readiness):
+selected PostgreSQL/OIDC/session decisions, protected one-time owner bootstrap,
+resumable company onboarding, test gates and a small implementation PR sequence.
+Ready means ready to implement locally, not a deployed or production-ready product.

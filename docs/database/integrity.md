@@ -9,6 +9,7 @@ must be implemented and tested before the schema is considered ready.
 | --- | --- | --- |
 | Account → Google ExternalIdentity | 0..1 in storage; exactly one usable login for active Google-only account | Identity-local FK, global issuer/subject ownership and Google-scoped account uniqueness; future-provider cardinality open |
 | Account → PlatformGrant | 1 to many capability grants | Identity/platform-access-local FK; no tenant role inheritance |
+| SetupState → initial owner | Singleton durable completion with historical optional account reference | Identity-local bootstrap transaction; no existing accounts; permanent Completed survives cleanup; current grants remain separate authority |
 | Account → status transition history | 1 to many immutable transitions proposed | Account/actor-local references; atomic status + audit; mandatory nonempty global-suspension reason |
 | Account → CompanyMembership | 1 to many across services | External AccountId reference, no SQL FK |
 | Company → CompanyApplication → ReviewDecision | 1 to many submitted versions; at most one terminal decision per submission proposed | Same-company FKs; immutable reviewed version; authorized platform proof by contract |
@@ -98,6 +99,13 @@ Uniqueness reuse after archive and slug/email reuse must be decided explicitly.
 
 ## Concurrency and transactions
 
+First-slice [engineering decisions](../implementation/readiness) select service-owned
+PostgreSQL transactions and application Version tokens. Bootstrap serializes on
+Identity's durable singleton; ordinary registration resumes across Identity and
+Organization using a stable creation operation and durable creator/operation
+uniqueness. Neither workflow assumes a distributed transaction. A temporary Google
+PendingLogin is not a permanent account before successful bootstrap.
+
 Use optimistic concurrency for editable aggregates; surface conflicts rather than
 silently overwriting newer values. Join uniqueness, single-Google identity enrollment,
 invitation consumption, only-login protection and last-owner updates need targeted
@@ -111,7 +119,7 @@ rather than treating a cache miss or dependency outage as permission.
 
 ### Application approval transaction
 
-Proposed P03 transaction: validate current operator capability/evidence and exact
+Selected E07 transaction: validate current operator capability/evidence and exact
 expected immutable submission version. In that same Organization transaction,
 require **Company.Status = Pending**, **Company.CurrentApplicationId = the requested
 submission ID**, and **Company.Version = the expected company version** before any
@@ -198,14 +206,17 @@ Enforce global status at protected endpoints, including platform actions, and
 invalidate/revoke the target account's sessions, caches and subscriptions under a
 defined contract. Queued/background work must not borrow stale eligibility. An
 invalidation event or client status label alone is insufficient proof of denial.
-Exact session mechanism, authority freshness, cross-service propagation bound and
-reauthentication behavior remain O09/O11 choices. A global ban of one account does
+E04/E11 select live status checks without positive caching, transactional target
+session revocation and new sign-in on reinstatement; admitted in-flight operations
+may finish. A global ban of one account does
 not silently merge/ban other Worktandem accounts in the same browser.
 
-O16 keeps profile fields, reason visibility, timed bans, reinstatement reason and
-limited suspended-account surfaces open. Self/last-operator and last-company-owner
-recovery need O09/O10/O16 decisions; do not invent a self-ban exemption or silently
-transfer ownership to make suspension appear safe.
+The readiness register selects DisplayName-only first-slice editing, internal ban
+reasons, a generic suspended status and no timed bans as engineering defaults.
+Reinstatement reasons and controlled self/last-operator/last-company-owner recovery
+remain scoped O09/O10/O16; do not silently transfer ownership. Public global status/removal
+writes stay disabled at the backend until cross-service ownership coordination is
+reviewed; a fresh remote owner read alone is not an atomic safety guarantee.
 
 ## Audit, outbox and projections
 
@@ -247,3 +258,4 @@ These are planned tests, not checks already executed by this documentation chang
 | Reinstatement | Global status transition does not unsuspend/restore removed memberships, bypass company suspension or recreate revoked grants/sessions; current gates are re-evaluated |
 | Ban reason and history | Null/empty/whitespace ban reason and forged actor fail without effects; successful transition records server actor/time/reason and before/after state; retries do not rewrite history |
 | User-management races and revocation | Company admin cannot perform global Users/ban operations; concurrent status/profile commands use expected version; stale sessions/tabs/jobs fail under the explicitly selected revocation contract |
+| Bootstrap and registration | Missing/wrong secret or setup marker, pre-bootstrap signup and concurrent attempts cannot create a partial/second owner; deleting accounts never reopens setup; Identity-success/Organization-failure resumes without duplicate companies; owner has no automatic tenant membership/self-review |

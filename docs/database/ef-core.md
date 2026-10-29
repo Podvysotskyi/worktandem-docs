@@ -2,11 +2,14 @@
 
 **Confirmed direction:** code-first Entity Framework Core with migrations.
 **Implementation status:** no entity classes, DbContexts, provider packages or migrations
-are introduced by this documentation. Provider selection and logical-model review
-come first.
+are introduced by this documentation. PostgreSQL is now confirmed; E01/E02/E09 in
+the [readiness register](../implementation/readiness) select PG18, EF/Npgsql10,
+separate Identity/Organization contexts and first-slice mappings. Actual code/model
+and migration review still comes first.
 This catalog follows the [current product specification](../product/identity-and-company-access)
 and [alignment dispositions](./identity-alignment-review#documentation-dispositions).
-P01–P04/O decisions remain open even where a concrete proposed mapping appears.
+Readiness-selected engineering defaults are not blanket user confirmation of
+P01–P04; O07 and other explicitly scoped owner-review items remain gated.
 
 ## Model versus migration
 
@@ -82,8 +85,9 @@ Google-scoped index with global AccountId uniqueness because it is easier to map
 
 ### Later implementation sequence
 
-1. Select provider/version and compatible EF/provider tooling, then approve the
-   initial entity slice and unresolved decisions from the [overview](./overview).
+1. Use the selected PostgreSQL/EF/Npgsql version family and verify exact supported
+   patches/restore graph from readiness E02, then review the initial model slice
+   and remaining decisions from the [overview](./overview).
 2. Implement Domain models and Infrastructure mappings, explicitly including tenant
    composite FKs, uniqueness, deletion rules and concurrency strategy.
 3. Generate a named migration with an explicitly selected owning DbContext, startup

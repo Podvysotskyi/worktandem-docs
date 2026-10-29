@@ -9,6 +9,9 @@ invitation or platform-administration capability is claimed to exist today.
 Use the confirmed rules to guide later desktop designs and the logical database
 model. Settle the marked proposals before treating them as implementation inputs.
 See the separate [review of the earlier database proposal](../database/identity-alignment-review).
+The [implementation readiness register](../implementation/readiness) now selects
+first-slice engineering defaults and explicitly scopes remaining owner-review items.
+Those technical selections are distinct from user-confirmed requirements below.
 
 ## Reading and decision status
 
@@ -39,7 +42,7 @@ the proposed schema or unresolved product defaults.
 | C03 | One account may have many company memberships | Company roles and access stay with the relevant membership |
 | C04 | Many Worktandem accounts may remain signed in within one browser | Account switching changes actor; company switching changes tenant for that actor; neither attaches another Google identity |
 | C05 | Email matching never automatically associates, merges or transfers accounts | No second-Google linking flow; Google replacement/recovery needs a separately agreed policy |
-| C06 | Company creation is part of new self-service registration | A created company starts Pending and needs manual platform-admin approval before business-product access |
+| C06 | Company creation is part of ordinary new self-service registration; bootstrap/platform operators need no company membership | A created company starts Pending and needs manual platform-admin approval before business-product access; platform grants never imply tenant access |
 | C07 | Platform administration has a separate Nuxt application | Worktandem operators are distinct from company administrators; a company-admin role does not grant platform privileges |
 | C08 | Company administrators may invite any email address | Company-domain setup is not a mandatory invitation or registration prerequisite |
 | C09 | Acceptance requires a signed-in Google identity whose verified email matches the invited address | A different-email OTP route is excluded; switch to the relevant Worktandem account or authenticate the matching Google identity to resolve/create its own account |
@@ -51,6 +54,9 @@ the proposed schema or unresolved product defaults.
 | C15 | Platform administrators have a Users list/detail/manage capability, including global ban | Company administrators do not gain platform-wide user-management rights |
 | C16 | Global ban uses Account.Status = Suspended and requires a nonempty reason/description | No separate IsBanned flag; audit actor/time/reason and retain status-transition history |
 | C17 | Each CompanyMembership has its own independent status | Global suspension denies access across companies without overwriting those states; reinstatement does not restore separately suspended/removed memberships or revoked grants |
+| C18 | PostgreSQL is the selected database, with EF Core code-first migrations | Provider choice is settled; version/mapping and service ownership follow the engineering readiness register |
+| C19 | First registered account becomes platform owner/admin through entered server-env setup secret | Validated temporary Google identity + secret + serialized no-existing-account check + durable one-time setup completion; no public first-signup ownership |
+| C20 | Initial platform owner need not create/join a company and may do so later | Bootstrap has a separate destination; company ownership/business access still requires the normal company workflow and another authorized reviewer |
 
 Company-invitation UI was previously proposed to show company, inviter, expiry,
 Accept/Decline and a company-switcher badge. These presentation details, decline
@@ -168,9 +174,24 @@ before this category can be treated as a complete acceptance workflow.
 
 ## Registration and company review
 
+### Initial platform owner
+
+**Confirmed:** initial registration can establish platform owner/admin after the
+operator enters a secret supplied only in server configuration. Company creation/
+joining is optional for that account. This is separate from ordinary self-service
+company onboarding; there is no implicit CompanyMembership or self-review exception.
+
+**Selected technical safeguard E05:** until durable setup is Completed, normal
+registration is unavailable. Validate Google into a short-lived pre-account context,
+then atomically check the entered secret, no accounts and locked incomplete setup
+state before creating the first account/Google identity/grants and permanently
+completing setup. Account deletion never reopens it. Missing configuration or
+inconsistent existing accounts fails closed; an empty user count alone is not
+authorization. See the [one-time transaction and recovery limits](../implementation/readiness#one-time-platform-bootstrap).
+
 ### Self-service company creation
 
-**Confirmed sequence:** Google authentication → company-creation form → company
+**Confirmed ordinary sequence after initial bootstrap:** Google authentication → company-creation form → company
 Pending → manual platform review → approval or rejection. Pending does not grant
 business-product access. There is no domain-ownership prerequisite by default.
 
@@ -191,7 +212,9 @@ business-product access. There is no domain-ownership prerequisite by default.
 5. Notify the applicant of the outcome through agreed channels. A notification
    failure must not undo the decision or create an extra membership.
 
-Proposed form, **not yet accepted**:
+Form below was proposed as P02; **E06 now selects it as the engineering default for
+the first slice**, with field bounds in the readiness register. It is not a claim
+that each detail was separately confirmed by the user:
 
 | Field | Suggested requirement | Meaning |
 | --- | --- | --- |
@@ -203,14 +226,14 @@ Proposed form, **not yet accepted**:
 | Legal registration identifier | Optional | Jurisdiction-specific; do not collect unnecessary sensitive documents |
 | Applicant account | Server-supplied | Derived from authenticated actor, never accepted as an arbitrary form ID |
 
-**Open:** exact lengths, supported countries, duplicate-company detection, legal
-name requirements and whether an existing member may create additional companies.
-Suggested default: flag possible duplicates for manual review; do not disclose
-another tenant or auto-join by name, website or email domain.
+E06/E07 select first-slice field validation, manual duplicate review and versioned
+rejection/resubmission. Additional company creation beyond the initial registration
+path and legal/domain claims remain separate scope. Never disclose another tenant
+or auto-join by name, website or email domain.
 
 ### Invitation-based joining
 
-**Proposed P01:** joining an existing approved company is a separate onboarding
+**Selected engineering default E08 (later invitation slice), derived from P01:** joining an existing approved company is a separate onboarding
 path. A new invited user authenticates with the matching Google identity and
 accepts the invitation without creating a duplicate company. An existing account
 accepts into the account owning the invited Google identity. If it belongs to a
@@ -219,7 +242,7 @@ account under the agreed onboarding path. Never attach it as a second Google
 identity or merge accounts merely because emails match.
 
 This exemption from mandatory company creation for invited registration is a
-necessary proposed interpretation, **not a separately confirmed user decision**.
+selected technical default, **not a separately confirmed user decision**.
 The handling of a user who arrives through a generic sign-up page but has an invite
 also needs agreement: suggested default is to offer discovered invitations before
 asking whether they want to create a different company.
@@ -241,7 +264,7 @@ submission; Approved → Suspended; Suspended → Approved after authorized revi
 Approved/Suspended → Archived under a separate retention policy. Approval is a
 business decision, not a freely writable status field.
 
-**Proposed P03:** a Pending/rejected company must not block the same account's
+**Selected engineering default E07, based on P03:** a Pending/rejected company must not block the same account's
 other approved memberships. The block is company-specific, not a blanket account
 onboarding flag. A zero-approved-membership account still gets account settings,
 invitation and status surfaces for an otherwise eligible account. A separate global
@@ -411,13 +434,13 @@ sign-in, a company-owner role, an email suffix or a configured domain never gran
 platform administration. The API rechecks operator grants and assurance for each
 privileged action. Separate platform denial tests are required.
 
-**Open O10:** initial operator bootstrap, grant/revoke authority, MFA assurance,
-step-up, emergency recovery and self-review separation. Suggested default:
-reviewed out-of-band initial provisioning with audit, minimal capability grants,
-recent strong authentication for sensitive operations, and an independently
-controlled recovery process. Do not infer MFA from a Google logo or `hd`; verify
+**O10 disposition:** initial bootstrap is now confirmed and secured by E05;
+E12 selects privileged-assurance defaults for owner review. Grant/revoke/recovery
+and rollout choices follow the readiness register; no out-of-band account seed or
+public first-signup shortcut is selected. Do not infer MFA from a Google logo or `hd`; verify
 what assurance claims and controls the chosen Google integration actually supports.
 No operator emails, credentials or bootstrap secrets belong in documentation.
+Do not infer production readiness from the design.
 
 ### Global user suspension and company status
 
@@ -530,6 +553,7 @@ are suggested conventions. Provider-owned records must follow the selected libra
 | --- | --- |
 | Account / Identity | Stable Id, display/contact fields, Status with Suspended used for global ban, creation/update/version; no redundant IsBanned, authoritative CurrentCompanyId, password, company role or unique-email assumption |
 | Account status transition / Identity | Proposed immutable account/actor references, before/after status, occurred time, reason and idempotency/version correlation; nonempty reason required for global suspension; physical storage/retention open |
+| SetupState / Identity | Singleton durable completion marker/version/initial-owner reference, locked during account bootstrap; never reset by deleting users, never store the entered environment secret |
 | ExternalIdentity / Identity | AccountId, provider, canonical Issuer, case-sensitive Subject, observed email/verified/hd, observed/authenticated times, association version; global unique (Issuer, Subject), plus Google-scoped uniqueness of AccountId so one account cannot hold two Google identities; future-provider cardinality open |
 | AccountSession / Identity | AccountId, identity/evidence reference, authentication time/assurance, created/expires/revoked times, context/version as selected; no exposed bearer values |
 | PlatformGrant / Identity capability | AccountId, capability, grant/revoke actor/time, status/version; tenant roles cannot create these grants |
@@ -630,7 +654,7 @@ later design work, not a statement that any mockup has been updated:
 
 | Surface | Required states to design |
 | --- | --- |
-| Google entry | Sign-in/register intent, Google chooser, cancel/failure, invalid response, no local password entry |
+| Google entry | Sign-in/register/bootstrap intent, Google chooser, cancel/failure, invalid response; temporary pre-account proof followed by setup-secret input when initializing; no local password entry |
 | Company form | New/incomplete submission, validation, duplicate hint without tenant disclosure, idempotent submit |
 | Application status | Pending, rejection reason, edit/resubmit, approval, suspension, access to other approved memberships |
 | Invitation inbox | No-company access, empty/loading/error, target account/Google email, expiry, Accept/Decline and unavailable company |
@@ -678,6 +702,7 @@ that any security or product behavior works.
 | T29 | Empty/whitespace suspension reason, forged actor/status/profile write or company admin calls Users/ban API | Server rejects invalid reason or unauthorized action with no status/history mutation; authorized transitions retain correct actor/time/reason and before/after history |
 | T30 | Concurrent suspend/reinstate/profile update, duplicate retry and stale tabs/tokens/jobs | Version conflict/idempotency prevents lost history/duplicate effects; status checks and chosen revocation contract prevent continued protected access; exact timing follows open decisions |
 | T31 | A company membership is suspended while another is Active; a different Worktandem account is signed in in the same browser | Only the relevant company's membership is affected by its suspension; global ban of the target account does not merge or ban the separate signed-in account |
+| T32 | Wrong/missing setup secret, two concurrent bootstrap attempts, rollback, ordinary pre-bootstrap signup or all accounts later removed | No permanent account before atomic owner creation; one winner only; registration gate holds; durable Completed never reopens; owner has no implicit company or self-approval |
 
 ## Decisions to settle
 
@@ -691,29 +716,31 @@ that any security or product behavior works.
 | P04 | Seven-day invitations; resend invalidates old link; revoke/decline; initial role stays within inviter's delegation authority |
 | P05 | Superseded proposal: strict domain enforcement with no guests; rejected by confirmed C14, which requires manual outside-domain invitations |
 
-P01–P04 remain unconfirmed. Agree each option explicitly; accepting that batch does
-not establish approval of every other proposal in this specification.
+P01–P04 were not separately user-confirmed. The readiness register now selects
+E06/E07 first-slice onboarding/review defaults and E08 later invitation defaults.
+O07 remains a gate before invitation acceptance. These are engineering choices
+under preparation authority, not blanket user approval of every earlier proposal.
 
 ### Ranked remaining implementation decisions
 
 | Priority / ID | Choice | Suggested starting point; still open |
 | --- | --- | --- |
-| Before design/schema / O01 | Final form, onboarding, incomplete registration and repeat company creation | P01/P02; save resumable onboarding; never auto-create/auto-join by domain |
+| Before design/schema / O01 | Form/onboarding and repeat company creation | E06 selects initial fields and resumable registration; E08 selects later invitation-join exemption; extra company-creation/legal claims remain separate scope |
 | Before design/schema / O02 | Duplicate companies and domain claims | Manual duplicate review; no unique company-name or implicit domain-owner entitlement |
-| Before design/schema / O03 | Review edits, reasons, resubmission, self-review and notifications | Versioned submissions; required rejection reason; separate internal notes; no self-review; durable outcome notifications |
+| Before design/schema / O03 | Review lifecycle | E07 selects single status, Pending read-only, rejection reason, new rejected resubmission, no self-review and in-app status outcome; additional channels are later scope |
 | Before design/schema / O04 | Pending company/membership permissions | P03; owner candidate distinct from active member; account-level routes remain available |
 | Before design/schema / O05 | Invite lifetime, resend/reinvite, initial roles, declined visibility and reinstatement | P04; least privilege; one pending offer per company/address; no removed-member bypass |
 | Before design/schema / O06 | Email normalization, freshness, changed email, mailbox reassignment and collisions | Conservative matching; no aliases/dot/plus equivalence by assumption; identity keys remain stable |
 | Before design/schema / O07 | Google third-party email authority | Explicit current-mailbox evidence policy while retaining same-Google-email rule; no adopted fallback yet |
 | Before optional integration design / O08 | Domain policy, manual eligibility controls, proof, rechecks and directory behavior | C14 manual invitations allowed; retain independent eligibility; sync never overrides suspension; directory auto-join not adopted |
 | Before security implementation / O09 | Removal/suspension, owner transfer/recovery, Google replacement/recovery and revocation timing | Preserve final-owner and single-usable-Google safeguards; no unrestricted unlink/relink; agree proofs, atomicity, revocation SLA and review-based recovery |
-| Before security implementation / O10 | Platform bootstrap, capability grants and MFA/step-up | Explicit reviewed initial grant, minimum privileges, verified assurance and independent recovery |
-| Before session implementation / O11 | Per-tab contexts, session storage, expiry, refresh and cross-app logout | Per-tab selection proposal; server-bound session proof; distinguish current/all-account logout |
+| Before privileged rollout / O10 | Capability grants, assurance and recovery | Bootstrap selected E05; E12 privileged assurance and controlled recovery require owner review/real-client verification; no automatic empty-database owner grant |
+| Before session implementation / O11 | Session design and revocation integration | E04/E11 select server container/per-tab selectors, 30-minute idle/12-hour absolute sessions, browser logout semantics and live checks; actual integration must prove them |
 | Before endpoint implementation / O12 | Privacy, account enumeration, rate limits and retention | Non-enumerating public results, per-actor/company/address limits, token-free audit; exact budgets/retention undecided |
 | Before design/schema changes / O13 | Existing design/database draft reconciliation | Follow the linked database review; preserve historical ADR; separately revise PR #3 after decisions; do not imply merge |
 | Future scope / O14 | Other providers, their cardinality/linking rules, transfers/merges and provider migration | General issuer/subject model; one-Google rule does not decide non-Google cardinality; provider-specific proof/matching/assurance before enabling; no local-password inference |
-| Before migrations / O15 | Physical provider/library, entity mapping and service boundaries | Map these requirements to selected authentication/session library and service-owned EF models; do not hand-roll duplicate credential tables |
-| Before user-management implementation / O16 | Editable fields, reason visibility, timed bans, reinstatement reason, suspended-account surface and self/last-operator/last-owner safeguards | Keep Account.Status authoritative, require a ban reason, protect independent membership states and audit history; choose remaining policy explicitly with O09–O11, no timed auto-unban assumed |
+| Before migrations / O15 | Physical mapping and service boundaries | PostgreSQL confirmed; E01–E04/E09 select provider/library/boundaries and sessions for the first slice; map requirements to reviewed service-owned EF models, no duplicate credential framework |
+| Before affected user-management rollout / O16 | User editing/reasons and owner safeguards | Readiness selects DisplayName-only editing, internal reasons and no timed bans; public global status/removal writes are backend-gated until ownership coordination is reviewed; no revival of revoked memberships/grants |
 
 ## Existing-document reconciliation
 
@@ -742,7 +769,7 @@ database proposal subsequently incorporates merged specification commit
 `bc2202360adeac9bd06f9d45f4901e859f553cf2` and aligns the catalog without changing
 confirmed product rules or implementing a schema.
 
-Settle P01–P04 and then O01–O16 in manageable product/security batches. Record
+Review the selected first-slice engineering defaults and remaining O01–O16 scope gates. Record
 accepted/rejected options with dates and consequences; revise the proposed defaults before
 treating proposed defaults as confirmed. Use the aligned catalog for the next model
 review; actual designs and implementation remain separate tasks. This publication does not authorize

@@ -10,6 +10,8 @@ repositories linked through Git submodules.
 - **Backend:** .NET multi-service architecture. Concrete service boundaries,
   contracts, persistence, and operational setup need implementation decisions.
 - **Documentation:** VitePress in its own repository.
+- **Persistence:** PostgreSQL with service-owned EF Core code-first contexts/migrations;
+  the [readiness register](../implementation/readiness) selects compatible PG18/EF10/Npgsql10 versions.
 - **Authorization:** scoped role-based access control (RBAC), not a generic
   attribute-based access control (ABAC) engine. Enforcement is still implementation work.
 
@@ -31,7 +33,9 @@ distinct; roles remain company-scoped. No second-Google linking flow is included
 replacement/recovery and future-provider cardinality remain open.
 Google-only sign-in is the present direction;
 no local email/password flow is planned for this scope. New self-service registration
-creates a Pending company for manual platform review. A separate Nuxt platform-admin
+creates a Pending company for manual platform review. Initial platform-owner setup
+is a separate secret-protected, one-time Google workflow with no company requirement.
+A separate Nuxt platform-admin
 application is planned. Existing users must see pending invitations in the app,
 with acceptance requiring a Google identity matching the invited verified email.
 
@@ -39,7 +43,8 @@ Optional company-domain configuration belongs to separate Google API integration
 Manual outside-domain invitations remain allowed even with that integration enabled.
 See the canonical [product specification](../product/identity-and-company-access)
 and [database proposal review](../database/identity-alignment-review). None of these
-flows is implemented. Session design and multi-tab switching remain open.
+flows is implemented. The [readiness register](../implementation/readiness) selects
+session/tab and bootstrap designs and scopes remaining integration/owner-review gates.
 
 ## Frontend scaffold configuration
 
@@ -54,12 +59,12 @@ a production deployment or implemented authentication.
 The following are candidates, not installed infrastructure or implemented features:
 
 - A future `/crm` application path; it is not implemented by the scaffold.
-- Shared-session implementation and multi-tab context design remain undecided, although Google sign-in support is confirmed.
+- Shared-session/tab implementation remains undelivered; E04/E11 select its design.
 - Google Workspace directory sync and domain auto-join remain separate proposals.
   Optional domain configuration is confirmed direction; its verification/policy
   implementation is open and must preserve manual outside-domain invitations.
-- PostgreSQL for persistence, RabbitMQ for messaging, SignalR for real-time delivery,
-  and Hangfire for background jobs.
+- RabbitMQ for messaging, SignalR for real-time delivery, and Hangfire for background
+  jobs remain candidates; PostgreSQL is selected. None is provisioned by documentation.
 
 The frontend tooling direction includes shadcn-vue, Tailwind CSS, and TanStack
 Table, Query, and Form, with Virtual optional when needed. Consult the frontend
