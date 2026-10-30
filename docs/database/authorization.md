@@ -114,11 +114,18 @@ It need not borrow a tenant membership. Company review uses the submitted compan
 and application version, with validated platform authority before the Organization
 transaction. Internal review notes and operational evidence have separate read
 permissions. Platform grants do not automatically confer tenant business-data access.
+The live Identity contract checks the requested capability and E12 assurance for
+this actor/session/action, not only account status. Organization uses the result
+immediately before its transaction; an already-admitted command may finish after
+concurrent remote revocation. Identity-owned grant writes recheck under local locks.
 The initial platform owner receives explicit owner/admin grants only through the
 [one-time secret-protected bootstrap](../implementation/readiness#one-time-platform-bootstrap).
 Company creation/membership is optional for platform operation; applying for a
 company later still requires a different authorized reviewer. Empty account count,
 email/domain, tenant role or a setup-page visit never grants platform authority.
+The initial owner can authorize that separate registered reviewer through the
+minimal audited platform-grant command, without creating tenant membership or
+granting a self-approval exception.
 
 E05 selects bootstrap; E07 denies self-review; E12 selects privileged-assurance
 defaults for owner review, with controlled recovery/rollout still gated. Do not seed

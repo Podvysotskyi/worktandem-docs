@@ -65,10 +65,12 @@ backend dependency graph. PR1 must verify restore, real-PG tests and advisories.
    and rate-limit metadata. Use shared enforcement across replicas, not only an
    in-process counter. Do not globally lock setup forever from anonymous failures.
 5. In one Identity transaction, lock the singleton row, recheck Incomplete, no
-   permanent accounts, unused/fresh PendingLogin, matching secret and identity
+   permanent accounts, unused/fresh PendingLogin, matching secret, E12's validated
+   MFA/fresh-authentication evidence for that same Google identity, and identity
    uniqueness; create Account + its single Google identity + explicit PlatformOwner
    and initial admin capabilities + audit, then set CompletedAt/InitialOwnerAccountId
    and consume the pending flow. All account-creation paths respect this gate/lock.
+   Missing/stale assurance cannot be bypassed by possession of the setup secret.
    Exactly one concurrent attempt wins. A rollback creates neither a partial owner
    nor a completed setup; a lost response is recoverable by signing in as that owner.
 6. Completed is permanent even if all accounts/grants are later closed/removed.
@@ -112,9 +114,18 @@ setup exposure. Owner/admin grants never imply CompanyMembership or business acc
   new sign-in and current grants/memberships; it never un-revokes sessions.
 - Same-origin browser requests use the cookie plus an ASP.NET antiforgery request
   token/header for unsafe methods, with Origin/Fetch Metadata checks as defense in
-  depth. Refresh actor-bound antiforgery context on account switching. No mutations
-  on GET or permissive credentialed cross-origin CORS. OIDC state/nonce binds the
-  callback; allowed return destinations are server-validated relative app routes.
+  depth. Use a stable container identity for framework antiforgery validation, with
+  validated additional token data bound to the selected AccountSessionId (or a
+  separate pre-login/setup purpose). Keep per-tab request tokens valid concurrently;
+  do not rotate the shared antiforgery cookie or replace a browser-wide last-user
+  token when switching tabs. Resolve the actual account principal separately for
+  authorization. This requires an adapter and two-account write tests: the default
+  different-user cookie/antiforgery pattern does not supply this behavior.
+  No business mutation on GET or permissive credentialed cross-origin CORS. The
+  framework Google callback may consume its flow and establish authentication via
+  GET only with validated state/nonce/correlation/code proof initiated by the
+  protected auth/start action; it is not a GET business-command exemption. Allowed
+  return destinations are server-validated relative app routes.
 - Gateway forwards only declared contracts; it does not manufacture trusted actor
   headers. Organization calls Identity's private session-validation contract with
   the forwarded browser credential/selector over authenticated service transport,
@@ -122,6 +133,15 @@ setup exposure. Owner/admin grants never imply CompanyMembership or business acc
   route and never logs credentials. Services use authenticated HTTPS/workload
   identities; configure this in the implementation environment, not in this task.
   A timeout/unavailable authority returns safe denial/unavailable, never permission.
+- Internal validation also evaluates the requested platform capability and E12
+  assurance/freshness for operator commands, not merely an active account/session.
+  Bind the response to the current request/actor and intended service/action; never
+  accept client-supplied grants or reuse an earlier request's positive evidence.
+  Organization validates immediately before its local decision transaction, records
+  the evidence reference, and rechecks its own state inside that transaction.
+  Revocation after this authorization point can leave that admitted operation in
+  flight; no distributed authorization lock is claimed. Identity-local sensitive
+  writes recheck grants/account/assurance while holding their local workflow locks.
 - Define the authorization point as the current Identity status/session lookup.
   Reads after a committed suspension fail; operations already admitted may finish.
   No long-lived positive cache or detached job bypass. First slice has no delayed
@@ -132,6 +152,7 @@ Use Microsoft's [OIDC/BFF integration](https://learn.microsoft.com/en-us/aspnet/
 and [Data Protection](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)
 mechanisms; multi-account selection is an application protocol to test, not a
 claim that a default single-principal cookie implements account switching.
+Microsoft also documents the [default multiple-user-tab limitation](https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery?view=aspnetcore-10.0#multiple-browser-tabs-and-the-synchronizer-token-pattern).
 Google's [OIDC documentation](https://developers.google.com/identity/openid-connect/openid-connect)
 defines stable subject and optional amr/auth_time claims; validate their actual
 availability rather than treating account selection as MFA.
@@ -162,7 +183,11 @@ Identity supplies a stable InitialRegistrationOperationId for this normal-accoun
 workflow (absent for bootstrap). Organization stores it with ApplicantAccountId,
 with durable uniqueness of that pair for the initial company. No company form or
 EF entity is stored in Identity. The client submits the form using that operation
-ID plus the normal idempotency key; after uncertain delivery it queries its own
+ID plus the normal idempotency key. Organization obtains/validates the expected
+operation from Identity for that authenticated account; an arbitrary new client ID
+cannot bypass initial-registration uniqueness. Optional company creation by a
+platform operator uses a distinct server-issued operation bound to that actor and
+purpose. After uncertain delivery the client queries its own
 application by operation ID and resumes/replays, rather than creating another
 company. Retries retain payload; changed payload after a committed request is a
 conflict/resubmission workflow. Durable initial-operation uniqueness remains after
@@ -189,10 +214,11 @@ Public DTOs never expose EF entities, setup secrets, tokens or internal review n
 | --- | --- |
 | POST auth/start + Google callback | Purpose login/register/bootstrap/add-account, safe return route and flow binding; callback resolves stable identity; bootstrap callback cannot create a permanent account |
 | POST setup/complete | PendingLogin reference from protected context + entered secret + antiforgery; atomic E05 checks; generic setup-not-available/invalid/rate-limited outcomes |
-| GET session/context | Cookie + selected AccountSessionId → authorized account summaries, own company memberships and CSRF context; global status filtered for permitted surface, no unprotected email enumeration |
-| POST companies/applications | Authenticated actor, E06 form, Idempotency-Key; creates Pending + snapshot/candidate; proposed 201 with IDs/status/ETag |
+| GET session/context | Cookie-owned container can list its safe account-session summaries without a selector; selected AccountSessionId then resolves only that authorized account's memberships/CSRF context. Missing selection never silently chooses another account; no unprotected email enumeration |
+| POST companies/applications | Authenticated actor, server-validated creation operation, E06 form, Idempotency-Key; creates Pending + snapshot/candidate; proposed 201 with IDs/status/ETag |
 | GET own application / operator queue | Applicant-only safe status/projection versus explicit operator read permission; pagination and separate internal notes |
 | POST platform/applications/{id}/decision | Explicit capability/assurance, outcome/reason, expected current Company ETag and submitted version; no self-review; all three approval guards and effects atomic |
+| POST platform/grants | Eligible owner + current platform.grants.manage + E12 assurance; registered target account, explicit code-owned capability/assignment and expected grant version; serialized audited grant/revoke, no tenant membership required |
 | GET company workspace / protected command | Valid cookie-owned session selector + company selector; live account check, approved company, active membership and complete scoped grant; no module-based permission |
 | POST platform/users/{id}/suspend or reinstate | Explicit authority, Account If-Match, mandatory nonempty suspension reason, atomic status/history/session revocation; no mass membership rewrites. Public writes remain server-disabled until the ownership-safety gate below is resolved, not merely hidden in UI |
 
@@ -204,7 +230,9 @@ Use application/problem+json with stable code, correlation ID and safe field err
 Expected versions are opaque strings, not client-written timestamps. Idempotency
 records are bound to authenticated actor + operation + target + payload hash;
 retain seven days for these writes, replay the original result, reject changed
-payload. They share the owning transaction; never log setup-secret payloads/hashes.
+payload. Current authentication/authorization is required before reading or replaying
+an idempotency result; an old key cannot bypass a ban or revoked capability.
+They share the owning transaction; never log setup-secret payloads/hashes.
 Setup completion instead uses its consumed PendingLogin and durable Completed
 marker; do not retain the entered secret or its payload hash in ordinary idempotency storage.
 
@@ -214,8 +242,12 @@ PlatformOwner is a protected `platform.owner` assignment, not a tenant role or
 wildcard permission. Bootstrap also supplies explicit `platform.companies.read`,
 `platform.companies.review`, `platform.users.read`, `platform.users.manage` and
 `platform.grants.manage` capabilities; later status-write capabilities remain gated.
-Only an eligible owner can later grant/revoke platform roles through an audited
-workflow. Operator membership in a company is optional. First-slice Users editing
+Only an eligible owner can grant/revoke platform roles through an audited
+workflow. Operator membership in a company is optional. Include the minimal grant
+command before review goes live so the initial
+owner can authorize a different registered reviewer without tenant membership or
+self-review. Granting operator access alone never approves that reviewer's company.
+First-slice Users editing
 allows DisplayName only (1–200); Google identity/email, global state and grants use
 separate commands. Ban reasons/history are operator-internal by default; a suspended
 user sees a generic status until owner-approved reason visibility is selected.
@@ -250,9 +282,9 @@ readiness checks; process-only scaffold health is not database/Google readiness.
 | PR | Small deliverable | Must pass before merge |
 | --- | --- | --- |
 | 1 | Identity boundary + separate Identity/Organization Npgsql contexts, explicit mapping and reviewed initial migration sources | Existing architecture tests; lock/restore graph; real PG18 keys, constraints, migrations-from-empty and upgrade tests; no shared tables or real-user seed |
-| 2 | Google OIDC, PendingLogin, one-time bootstrap and server session foundation | Invalid issuer/audience/nonce/callback replay; absent/wrong secret; concurrent bootstrap; rollback; pre-bootstrap registration denied; completion never reopens after account removal; owner has no implicit company |
-| 3 | Separate platform app/auth shell and resumable ordinary company application/status flow | Nuxt/shadcn/Tailwind shared tokens; per-tab selectors/cache isolation; no second Google link; Identity-success/Organization-failure resumes with one account/company; Pending endpoints deny protected reads/writes; safe cancellation/retry |
-| 4 | Operator queue/reject/resubmit/approve and company workspace authorization | Cross-company negative tests; superseded submission even with matching own version rejected; atomic owner activation; no self-review; valid unrelated company remains accessible |
+| 2 | Google OIDC, PendingLogin, one-time bootstrap and server session foundation | Invalid issuer/audience/nonce/callback replay; absent/wrong secret or E12 assurance; concurrent bootstrap; rollback; pre-bootstrap registration denied; completion never reopens after account removal; owner has no implicit company |
+| 3 | Separate platform app/auth shell and resumable ordinary company application/status flow | Nuxt/shadcn/Tailwind shared tokens; two-account parallel-tab antiforgery writes/cache isolation; no second Google link; server-bound operation rejects forged/replaced IDs; Identity-success/Organization-failure resumes with one account/company; Pending endpoints deny protected reads/writes; safe cancellation/retry |
+| 4 | Minimal owner-to-reviewer platform grant command, operator queue/reject/resubmit/approve and company workspace authorization | Reviewer can operate without tenant membership; revoked grant/stale or absent assurance denied; cross-company negative tests; superseded submission even with matching own version rejected; atomic owner activation; no self-review; valid unrelated company remains accessible |
 | 5 | Platform Users reads/DisplayName edits and tested suspension enforcement | Required reason/audit and race tests at the owning boundary; suspended fixtures revoke sessions and preserve memberships/grants; stale contexts denied. Public suspend/reinstate/removal writes stay server-disabled until ownership coordination/owner review; direct API bypass tests required |
 | Later | Switching UX completion and invitation lifecycle | Session model already supports multiple accounts; E08/O07 agreed and tested before invitation acceptance; outside-domain manual eligibility persists; suspension overrides it |
 

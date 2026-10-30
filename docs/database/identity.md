@@ -87,9 +87,13 @@ IdentityDbContext: Id (constant bounded string PK), Status Incomplete/Completed 
 Version Guid required; CompletedAt UTC? and InitialOwnerAccountId Guid? (local FK,
 Restrict). Completion fields are present iff Completed. A migration seeds only the
 incomplete marker, never an account, Google subject or secret.
+With this Restrict FK, retain the initial account as a closed/anonymized tombstone;
+first-slice account lifecycle does not physically purge it. Any later approved
+erasure mapping must preserve Completed and its audit, never reopen setup.
 
 Lock that row and atomically validate fresh unused PendingLogin, no accounts,
-incomplete setup and the entered environment secret before creating Account,
+incomplete setup, the entered environment secret and E12's validated same-identity
+MFA/authentication freshness before creating Account,
 its unique Google association, owner/admin grants, audit and Completed state.
 Normal registration is closed until completion and all account-creation paths obey
 the gate. The marker is not derived from user count and is never deleted/reset by
@@ -151,9 +155,11 @@ no OTP, email-only login or differing-email fallback is selected.
 
 ## Provider-owned authentication records
 
-These are logical capabilities, not additional custom EF tables beside the chosen
-library's own authentication/session model. No LocalCredential, password signup or
-password-reset schema belongs to the current scope.
+Framework OIDC owns protocol/crypto/correlation records. E04 deliberately requires
+application-owned browser-container and AccountSession persistence for multiple
+accounts; ASP.NET's default single-principal cookie is not that session model.
+Map these capabilities once rather than duplicating library records. No
+LocalCredential, password signup or password-reset schema belongs to this scope.
 
 | Capability | Required logical information / constraints |
 | --- | --- |
@@ -196,6 +202,10 @@ transaction, with bootstrap audit. Reserve `platform.owner` as an explicit prote
 platform assignment; it is not a tenant role or wildcard. Initial admin capabilities
 are explicit code-owned grants. E12 and the readiness owner-safety section select
 assurance/self-service safeguards; recovery never reopens setup.
+The first review slice includes an audited owner-authorized grant/revoke command
+for an existing registered account, with live capability/E12 assurance and local
+workflow locks. A different reviewer can receive platform access without tenant
+membership; that grant does not approve its own company application.
 
 ## Multiple accounts in one browser
 

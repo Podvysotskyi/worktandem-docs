@@ -29,7 +29,10 @@ Archive first; no broad cascade delete of all tenant history.
 E06 uses unique (CreatedByAccountId, CreationOperationId) independently of short-lived
 HTTP idempotency storage. Normal registration receives its stable operation ID from
 Identity; the initial platform owner can request its optional company-creation
-operation later. No cross-service FK or distributed registration transaction is implied.
+operation later. Organization validates that actor/purpose/operation binding with
+Identity before creation; arbitrary client operation IDs cannot bypass initial
+uniqueness. Resume/lookup is authorized to that applicant, not by knowing an ID.
+No cross-service FK or distributed registration transaction is implied.
 
 Pending is a business-access gate, not an active membership or global account block.
 Proposed transitions: Pending → Approved/Rejected; Rejected → Pending on a versioned

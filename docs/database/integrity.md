@@ -134,13 +134,19 @@ state, activate applicant membership/Owner grant on approval, and persist audit 
 required notification intent. Use unique application decision and company/account
 membership constraints with version checks. Pending candidate has no active owner
 privileges; last-active-owner rules begin at activation. Rejected submissions do
-not activate membership. Resubmission creates new reviewable history under O03.
+not activate membership. E07 rejected resubmission creates new immutable history.
 
-A retry with the same actor/company/operation/payload returns the original result;
+A currently authorized retry with the same actor/company/operation/payload returns the original result;
 another reviewer or edited version cannot overwrite it. No network calls inside the
 transaction. If Identity/platform access is a separate service, specify validated
 authority freshness/revocation and recoverable contracts; do not claim a distributed
 SQL transaction across service databases.
+E04/E12 select a live Identity check of the requested platform capability and
+same-session assurance immediately before this transaction; record its reference.
+Evidence is bound to this request/actor/action, never reused as a cached grant.
+Grant/account revocation after that check may leave the admitted operation in
+flight; it is not atomically locked with the Organization database. Identity-local
+privileged writes instead recheck authority under their own workflow locks.
 
 ### Invitation acceptance transaction
 
@@ -197,8 +203,8 @@ target, operation and payload; retries return the recorded outcome without lost
 history, duplicate transitions or silently changing the original reason.
 
 Concurrent suspend/reinstate/profile updates must not overwrite newer state. Keep
-status commands out of unrestricted profile-field updates; the editable allowlist
-is open. No Organization membership/role mutation is part of the global ban or
+status commands out of unrestricted profile-field updates; the first-slice
+allowlist is DisplayName only. No Organization membership/role mutation is part of the global ban or
 reinstatement transaction. Reinstatement checks current state and does not replay
 an old membership/role snapshot or revive revoked sessions automatically.
 
@@ -259,3 +265,4 @@ These are planned tests, not checks already executed by this documentation chang
 | Ban reason and history | Null/empty/whitespace ban reason and forged actor fail without effects; successful transition records server actor/time/reason and before/after state; retries do not rewrite history |
 | User-management races and revocation | Company admin cannot perform global Users/ban operations; concurrent status/profile commands use expected version; stale sessions/tabs/jobs fail under the explicitly selected revocation contract |
 | Bootstrap and registration | Missing/wrong secret or setup marker, pre-bootstrap signup and concurrent attempts cannot create a partial/second owner; deleting accounts never reopens setup; Identity-success/Organization-failure resumes without duplicate companies; owner has no automatic tenant membership/self-review |
+| Session/authority contracts | Concurrent account tabs can both send valid actor-bound writes; wrong selected-session CSRF data fails; missing/stale bootstrap/operator assurance and revoked capabilities deny; server rejects foreign/replaced creation-operation IDs and unauthorized lookup/replay |

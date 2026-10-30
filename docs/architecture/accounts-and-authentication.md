@@ -53,6 +53,10 @@ an operation's original actor/company; cancel/discard stale responses or queued 
 on switching. E04/E11 select cookie-bound server sessions, per-tab selectors, live
 status checks and explicit revocation semantics for the first slice; deployment
 transport/key configuration is still required.
+Framework antiforgery uses a stable container identity with selected-session-bound
+additional request-token data; switching a tab must not replace another tab's
+shared cookie/token authority. See the readiness session contract and its
+two-account concurrent-write acceptance requirement.
 Sign out current account and sign out all Worktandem accounts are distinct operations.
 See [sessions and authorization](../product/identity-and-company-access#sessions-account-switching-and-authorization).
 

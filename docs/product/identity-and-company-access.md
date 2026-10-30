@@ -568,8 +568,8 @@ are suggested conventions. Provider-owned records must follow the selected libra
 | Membership eligibility / Organization | Proposed auditable accepted-manual-invitation reference; if sync is adopted, separate independent directory eligibility rather than one destructive source flag; suspension remains an overriding membership state |
 | Audit / each owner | Event ID, actor, optional company, action, target, timestamp, outcome/reason code, correlation and changed-version reference; avoid raw tokens and unnecessary profile data |
 
-An owner candidate may be represented by the application reference or an explicitly
-non-active membership; choose one. Do not let a generic Active membership appear
+E07 selects the application applicant reference as owner candidate; a parallel
+inactive candidate membership is not selected. Do not let an Active membership appear
 before approval. The last-active-owner invariant applies to approved companies,
 not to Pending applications that intentionally have only a candidate.
 Role-grant scopes and membership references use the same company;
@@ -577,8 +577,8 @@ cross-company role/member references are rejected even when individual IDs exist
 
 The logical Google uniqueness requirement may map to a Google-specific relation,
 a provider-scoped/filtered unique key or the selected authentication library's
-equivalent. Do not choose physical SQL here, make AccountId globally unique across
-all providers, or generalize a Google-specific rule into one identity per future
+equivalent; E09 selects the PostgreSQL partial unique account key for the first slice.
+Do not make AccountId globally unique across all providers or generalize a Google-specific rule into one identity per future
 provider without a separate decision. At-most-one uniqueness does not itself
 guarantee a usable login: activation and recovery workflows must preserve exactly
 one usable Google login for an active Google-only account.
