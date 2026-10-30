@@ -88,18 +88,20 @@ Pinned links below resolve to the reviewed commit, not a moving branch.
 ## Proposed model changes for the next design revision
 
 This is a logical change list, not permission to implement it.
+The [readiness register](../implementation/readiness) now selects first-slice
+engineering defaults; the pinned earlier findings above remain historical context.
 
 | Area | Proposed shape | Unresolved choice |
 | --- | --- | --- |
-| Google identity cardinality | Global issuer/subject uniqueness plus Google-scoped per-account uniqueness; preserve exactly one usable Google login for active Google-only accounts | Mapping to the chosen provider/library; Google replacement/recovery policy; future-provider cardinality remains separate and open |
-| Company review | Company references current review state/version; CompanyApplication stores submitted form snapshots; ReviewDecision records authorized actor, outcome, reason and reviewed version | Exact required form fields; one status enum versus separate review/lifecycle axes; pending edits; resubmission |
-| Owner candidate | ApplicantAccountId on application or explicit non-active candidate record; approval activates member + Owner grant | Candidate record versus inactive membership; preserve JoinedAt meaning and avoid active-role leakage |
-| Platform authorization | Explicit AccountId + platform capability grant, granting/revoking actor/time and concurrency | Owning Identity capability, bootstrap, MFA assurance and last-operator recovery |
+| Google identity cardinality | Global issuer/subject plus Google-scoped per-account uniqueness | E09 selects PG partial unique key; Google replacement/recovery and future providers remain separate scope |
+| Company review | Current company/submission versions, immutable snapshots and authorized decisions | E06/E07 select first-slice fields, single status, Pending read-only, reason and rejected resubmission |
+| Owner candidate | E07 selects Application.ApplicantAccountId until approval activates member/Owner | No parallel inactive candidate membership; later ownership/recovery remains gated |
+| Platform authorization | Explicit Identity-owned platform capability grants | E01/E05 select owner/bootstrap; E12 assurance and recovery need owner review before rollout |
 | Invitation | Current recipient/matching-policy version, inviter, proposed grants, status/expiry, accepted actor/member and proof reference | Seven-day expiry, decline/resend/reinvite defaults, delegation rechecks, retention |
 | Invitation link | Token digest/generation separate logically from invitation; same invitation ID supports account-authorized inbox action | Embedded fields versus child delivery/link credential; whether multiple outstanding delivery generations are permitted |
 | Manual eligibility | Accepted authorized manual invitation recorded as membership eligibility/provenance | Compact model now versus independent grant records if sync is adopted; explicit revocation/transfer rules |
 | Google integration | Company-scoped consent/scopes, protected secret reference, connection health, domain-control evidence and policy version | Exact APIs/scopes, domain proof/conflicts, integration owner and revocation policy |
-| Authentication evidence | Current identity proof tied to session/operation, email/verified/hd evidence age and validation policy | Google third-party-address current-mailbox proof; provider/library records versus application projection |
+| Authentication evidence | Framework OIDC plus Identity-owned E04 server session/account-container protocol | O07 mailbox proof remains gated for invitations; E12 optional Google assurance must be verified with actual client |
 | Audit/notification | Decision/acceptance audit plus durable idempotent outcome delivery where needed | Audit owner/retention/access; outbox implementation when an actual producer/consumer exists |
 
 ### Multiple eligibility sources
@@ -169,22 +171,23 @@ and bring in the merged specification/dependency fixes without rewriting main.
 
 | Original finding | Current catalog disposition | Still open |
 | --- | --- | --- |
-| Optional local credentials and multiple Google identities | [Identity](./identity#externalidentity) removes local-password records and second-Google flow; adds issuer/subject + Google-scoped account uniqueness | Provider/library mapping, active-login consistency, Google replacement/recovery and future-provider cardinality |
-| Missing Pending/review history/owner candidate | [Organization](./organization#companyapplication-and-reviewdecision) adds submitted versions, decisions and applicant-as-candidate proposal; [integrity](./integrity#application-approval-transaction) describes activation transaction | Form fields, lifecycle axes, edits/resubmission/reasons/notification defaults and P01–P03 |
-| Tenant-only authorization statement | [Authorization](./authorization#account-and-platform-query-paths) separates operator paths; [PlatformGrant](./identity#platformgrant) gives a logical owner/model | Bootstrap, MFA/step-up, grant authority and recovery |
+| Optional local credentials and multiple Google identities | [Identity](./identity#externalidentity) removes password/second-Google flows; E02/E03/E09 select PG/EF/Npgsql/OIDC and partial key | Actual mapping/tests, replacement/recovery and future providers |
+| Missing Pending/review history/owner candidate | [Organization](./organization#companyapplication-and-reviewdecision) and [integrity](./integrity#application-approval-transaction) follow E06/E07 fields/status/candidate/review defaults | Additional company/legal workflow and later delivery channels; no user-confirmation claim for engineering defaults |
+| Tenant-only authorization statement | [Authorization](./authorization#account-and-platform-query-paths) separates operator paths; E05 supplies permanent secret-protected bootstrap with no tenant requirement | E12 assurance/recovery and ownership coordination before public status writes |
 | Invitation discovery, states, role offers and token coupling | [Invitations](./organization#companyinvitation) share one record; optional [link credential](./organization#invitationlinkcredential) does not require token input in-app; current identity proof and race rules documented | P04/O05 lifetime/decline/resend/roles/reinstatement, O06 normalization and O07 third-party-mailbox evidence |
 | Missing manual/domain eligibility interaction | [Manual eligibility](./organization#manual-membership-eligibility) preserves outside-domain manual access; [optional integration](./organization#optional-google-integration-and-domains) separates consent/proof from login | Exception authority/revocation, domain proof/outage rules, future directory scope and independent source representation |
 | Account/platform queries and last-owner boundary | [Integrity](./integrity#tenant-filters-are-defense-in-depth) adds deliberate no-tenant paths; candidate has no active owner grants; activated companies get owner protection | Revocation bounds, cross-service evidence freshness and recovery |
-| Migration model review | [EF gate](./ef-core#model-review-gate) explicitly checks the aligned invariants before entity/migration generation | Provider/version, naming/types/index mapping and implementation approval |
+| Migration model review | [EF gate](./ef-core#model-review-gate) plus E01/E02/E09 choose service contexts/version family/mappings | Actual restore/EF mapping, migration sources, real-PG tests and implementation authorization |
 
 ## Decisions and next revision
 
 The canonical [decision inventory](../product/identity-and-company-access#decisions-to-settle)
-tracks product and security choices. Highest schema-impact questions are the
-company form/review states and owner activation, invitation defaults and reinstatement,
-email-evidence/normalization policy, manual eligibility representation, platform
-bootstrap/assurance and session context. Database provider/authentication library
-remain open; choosing EF Core does not choose PostgreSQL or ASP.NET Core Identity.
+tracks product and security choices. Use the selected E01–E11 engineering defaults
+and scoped owner-review gates for the next model revision. PostgreSQL
+and EF code-first are confirmed; framework OIDC, server sessions, bootstrap and
+first-slice fields/review are selected. O07 invitation proof, E12 privileged rollout/
+recovery and cross-service owner safety remain bounded gates. No ASP.NET local
+password framework or full up-front business-entity design is required.
 
 The earlier catalog is now revised in this proposal, with unrelated organization/
 RBAC design preserved. Settle the remaining choices, then review the selected logical

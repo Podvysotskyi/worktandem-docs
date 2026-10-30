@@ -8,11 +8,13 @@ export default defineConfig({
     nav: [
       { text: 'Getting started', link: '/getting-started' },
       { text: 'Architecture', link: '/architecture/overview' },
+      { text: 'Implementation readiness', link: '/implementation/readiness' },
       { text: 'Database', link: '/database/overview' }
     ],
     sidebar: [
       { text: 'Guide', items: [
-        { text: 'Getting started', link: '/getting-started' }
+        { text: 'Getting started', link: '/getting-started' },
+        { text: 'Implementation readiness', link: '/implementation/readiness' }
       ] },
       { text: 'Architecture', items: [
         { text: 'Overview', link: '/architecture/overview' },

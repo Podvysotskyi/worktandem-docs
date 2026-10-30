@@ -9,6 +9,8 @@ must be implemented and tested before the schema is considered ready.
 | --- | --- | --- |
 | Account → Google ExternalIdentity | 0..1 in storage; exactly one usable login for active Google-only account | Identity-local FK, global issuer/subject ownership and Google-scoped account uniqueness; future-provider cardinality open |
 | Account → PlatformGrant | 1 to many capability grants | Identity/platform-access-local FK; no tenant role inheritance |
+| SetupState → initial owner | Singleton durable completion with historical optional account reference | Identity-local bootstrap transaction; no existing accounts; permanent Completed survives cleanup; current grants remain separate authority |
+| Account → status transition history | 1 to many immutable transitions proposed | Account/actor-local references; atomic status + audit; mandatory nonempty global-suspension reason |
 | Account → CompanyMembership | 1 to many across services | External AccountId reference, no SQL FK |
 | Company → CompanyApplication → ReviewDecision | 1 to many submitted versions; at most one terminal decision per submission proposed | Same-company FKs; immutable reviewed version; authorized platform proof by contract |
 | Application → applicant account | One owner candidate reference, not active membership | External account contract; activation only through approved review workflow |
@@ -86,11 +88,23 @@ membership cleanup, last-owner recovery, identity/session revocation and the
 agreed retention/anonymization policy. Do not promise immediate physical erasure or
 retain personal identity profile snapshots forever without that policy.
 
+Global account-status history retains actor/time/reason and before/after transitions
+under that policy; account or actor deletion must not silently cascade it away.
+Reason visibility/anonymization and precise retention remain open. Do not duplicate
+global ban state as IsBanned or erase membership history to simulate a global ban.
+
 There is no universal soft-delete base class in the proposal. Authentication revocation,
 membership departure, archive status, and legal retention are different behaviors.
 Uniqueness reuse after archive and slug/email reuse must be decided explicitly.
 
 ## Concurrency and transactions
+
+First-slice [engineering decisions](../implementation/readiness) select service-owned
+PostgreSQL transactions and application Version tokens. Bootstrap serializes on
+Identity's durable singleton; ordinary registration resumes across Identity and
+Organization using a stable creation operation and durable creator/operation
+uniqueness. Neither workflow assumes a distributed transaction. A temporary Google
+PendingLogin is not a permanent account before successful bootstrap.
 
 Use optimistic concurrency for editable aggregates; surface conflicts rather than
 silently overwriting newer values. Join uniqueness, single-Google identity enrollment,
@@ -105,7 +119,7 @@ rather than treating a cache miss or dependency outage as permission.
 
 ### Application approval transaction
 
-Proposed P03 transaction: validate current operator capability/evidence and exact
+Selected E07 transaction: validate current operator capability/evidence and exact
 expected immutable submission version. In that same Organization transaction,
 require **Company.Status = Pending**, **Company.CurrentApplicationId = the requested
 submission ID**, and **Company.Version = the expected company version** before any
@@ -120,13 +134,19 @@ state, activate applicant membership/Owner grant on approval, and persist audit 
 required notification intent. Use unique application decision and company/account
 membership constraints with version checks. Pending candidate has no active owner
 privileges; last-active-owner rules begin at activation. Rejected submissions do
-not activate membership. Resubmission creates new reviewable history under O03.
+not activate membership. E07 rejected resubmission creates new immutable history.
 
-A retry with the same actor/company/operation/payload returns the original result;
+A currently authorized retry with the same actor/company/operation/payload returns the original result;
 another reviewer or edited version cannot overwrite it. No network calls inside the
 transaction. If Identity/platform access is a separate service, specify validated
 authority freshness/revocation and recoverable contracts; do not claim a distributed
 SQL transaction across service databases.
+E04/E12 select a live Identity check of the requested platform capability and
+same-session assurance immediately before this transaction; record its reference.
+Evidence is bound to this request/actor/action, never reused as a cached grant.
+Grant/account revocation after that check may leave the admitted operation in
+flight; it is not atomically locked with the Organization database. Identity-local
+privileged writes instead recheck authority under their own workflow locks.
 
 ### Invitation acceptance transaction
 
@@ -165,6 +185,45 @@ one source does not destroy another. Neither directory events nor consent refres
 reactivates an explicit suspension. Optional domain checks honor accepted manual
 outside-domain membership at later access, not merely at invitation consumption.
 
+### Global account suspension and reinstatement
+
+**Confirmed:** Account.Status = Suspended is global ban, requires a nonempty reason/
+description, and overrides company access without changing CompanyMembership.Status.
+Reinstatement cannot recreate separately suspended/removed memberships or revoked
+grants. Keep account state, company state, membership state and role eligibility
+as independent checks, rather than writing a global status into every membership.
+
+**Proposed owning transaction:** validate an active authorized platform actor,
+expected Account.Version and current state; reject null/empty/whitespace-only ban
+reason; atomically update Account.Status/Version and append actor/time/reason plus
+before/after transition history. Persist required revocation/delivery intent with
+the change using the selected library/service contracts; do not claim a distributed
+transaction over session stores or Organization. Scope idempotency to the actor,
+target, operation and payload; retries return the recorded outcome without lost
+history, duplicate transitions or silently changing the original reason.
+
+Concurrent suspend/reinstate/profile updates must not overwrite newer state. Keep
+status commands out of unrestricted profile-field updates; the first-slice
+allowlist is DisplayName only. No Organization membership/role mutation is part of the global ban or
+reinstatement transaction. Reinstatement checks current state and does not replay
+an old membership/role snapshot or revive revoked sessions automatically.
+
+Enforce global status at protected endpoints, including platform actions, and
+invalidate/revoke the target account's sessions, caches and subscriptions under a
+defined contract. Queued/background work must not borrow stale eligibility. An
+invalidation event or client status label alone is insufficient proof of denial.
+E04/E11 select live status checks without positive caching, transactional target
+session revocation and new sign-in on reinstatement; admitted in-flight operations
+may finish. A global ban of one account does
+not silently merge/ban other Worktandem accounts in the same browser.
+
+The readiness register selects DisplayName-only first-slice editing, internal ban
+reasons, a generic suspended status and no timed bans as engineering defaults.
+Reinstatement reasons and controlled self/last-operator/last-company-owner recovery
+remain scoped O09/O10/O16; do not silently transfer ownership. Public global status/removal
+writes stay disabled at the backend until cross-service ownership coordination is
+reviewed; a fresh remote owner read alone is not an atomic safety guarantee.
+
 ## Audit, outbox and projections
 
 These concerns are distinct and are **not all initial business entities**:
@@ -201,3 +260,9 @@ These are planned tests, not checks already executed by this documentation chang
 | Request context | Account/company/tab switches cannot rebind queued writes or leak cached data; revocation stops access within agreed bound; account-level routes do not require a fake tenant |
 | Structure/lifecycle | Department/manager cycles rejected; scope unions do not widen grants; concurrent owner changes cannot orphan an activated company; restrict deletion preserves required history |
 | Provider/operations | Real-provider FK/index/transaction checks, raw SQL/bulk/admin bypass tests, notification deduplication and audit/secret review; no EF InMemory-only claim of relational integrity |
+| Global versus membership status | Global suspension denies Active memberships across companies without changing them; company-specific suspension denies only that membership; manual/domain eligibility cannot override global ban |
+| Reinstatement | Global status transition does not unsuspend/restore removed memberships, bypass company suspension or recreate revoked grants/sessions; current gates are re-evaluated |
+| Ban reason and history | Null/empty/whitespace ban reason and forged actor fail without effects; successful transition records server actor/time/reason and before/after state; retries do not rewrite history |
+| User-management races and revocation | Company admin cannot perform global Users/ban operations; concurrent status/profile commands use expected version; stale sessions/tabs/jobs fail under the explicitly selected revocation contract |
+| Bootstrap and registration | Missing/wrong secret or setup marker, pre-bootstrap signup and concurrent attempts cannot create a partial/second owner; deleting accounts never reopens setup; Identity-success/Organization-failure resumes without duplicate companies; owner has no automatic tenant membership/self-review |
+| Session/authority contracts | Concurrent account tabs can both send valid actor-bound writes; wrong selected-session CSRF data fails; missing/stale bootstrap/operator assurance and revoked capabilities deny; server rejects foreign/replaced creation-operation IDs and unauthorized lookup/replay |

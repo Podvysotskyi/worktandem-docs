@@ -4,8 +4,10 @@
 The [canonical product specification](../product/identity-and-company-access) and
 [ADR-003](../architecture/decisions#adr-003-one-google-identity-per-worktandem-account)
 control current behavior. Google-only sign-in is confirmed; local credentials and
-multiple Google identities on one Worktandem account are excluded. Provider/library,
-physical session storage and future-provider cardinality remain open.
+multiple Google identities on one Worktandem account are excluded.
+The [readiness register](../implementation/readiness) selects framework OIDC,
+Identity-owned server sessions and first-slice mappings; future-provider cardinality
+and detailed deployment/recovery scope remain distinct.
 
 ## Account
 
@@ -17,7 +19,8 @@ A stable global actor, independent of company membership or a mutable Google ema
 | DisplayName | string, required, max 200 | User-facing name |
 | PrimaryEmail | string?, max 320 | Optional contact/profile address, never an independent login or invitation authority |
 | NormalizedPrimaryEmail | string?, max 320 | Optional contact lookup using the selected normalization policy |
-| Status | required enum | Proposed Active, Suspended, Closed |
+| Status | required enum | Suspended is the confirmed global-ban state; Active/Closed and full transition vocabulary remain proposed |
+| InitialRegistrationOperationId | Guid? | E06 stable normal-registration correlation, absent for bootstrap; not CompanyId or an authorization flag |
 | CreatedAt, UpdatedAt, Version | required | UTC lifecycle metadata and concurrency token |
 
 Index NormalizedPrimaryEmail only for a concrete lookup. Do not infer global email
@@ -25,11 +28,86 @@ uniqueness or merge accounts by email. Contact verification, if ever modeled, do
 not replace the accepting Google identity's current verified email. O06/O07 in the
 product specification govern normalization and current-mailbox evidence.
 
-An account without an approved membership can use authorized account/onboarding,
+An otherwise eligible account without an approved membership can use authorized account/onboarding,
 status and invitation routes. A company's Pending status must not become an account
-suspension; access to other approved memberships remaining available is proposed P03.
+suspension; E07 keeps access to other independently approved memberships available.
 Do not add CompanyId, authoritative CurrentCompanyId or company roles to Account.
-Account suspension is separate from company or membership suspension.
+Account suspension is separate from company or membership suspension. Global ban
+uses this Status with a mandatory nonempty reason/description and actor/time/history;
+do not add IsBanned. It denies protected access across companies without writing
+CompanyMembership.Status or erasing grants. Reinstatement does not activate
+independently suspended/removed memberships or recreate revoked grants/sessions.
+
+## Account status transition history
+
+**Confirmed information:** global suspension requires nonempty reason/description;
+retain authorized actor, time, before/after state and transition history. **Proposed
+logical record** AccountStatusTransition belongs to Identity beside Account, not
+Organization membership history. This is not a generated EF entity or an assertion
+that a particular audit-storage product/table has been selected.
+
+| Property | Proposed type / nullability | Purpose |
+| --- | --- | --- |
+| Id | Guid, required, PK | Immutable transition/event ID |
+| AccountId | Guid, required, local FK Account | Target account |
+| ActorAccountId | Guid, required, local FK Account | Authenticated authorized platform actor, never an arbitrary client ID |
+| PreviousStatus / NewStatus | bounded enums, required | Before/after global state |
+| OccurredAt | UTC instant, required | Server-controlled decision time |
+| Reason | bounded string?, proposed max 2000 | Non-null/nonempty after trimming when NewStatus = Suspended; reason policy for other transitions remains open |
+| ExpectedAccountVersion / ResultAccountVersion | Guid, required | Proposed concurrency/audit correlation, not a replacement for atomic status validation |
+| OperationId | bounded string, required | Proposed actor/operation/payload-bound idempotency reference |
+
+Index (AccountId, OccurredAt, Id) for ordered history; define operation-key uniqueness
+in the owning idempotency design. Prefer Restrict/NoAction for account/actor FKs
+and controlled retention/anonymization so deleting an actor does not silently erase
+required history. Reject a null, empty or whitespace-only suspension reason in the
+Application/domain workflow, with a provider-compatible storage constraint where
+the chosen mapping permits it. Reject inconsistent prior/version transitions;
+commit Account.Status/Version and history together. Do not rewrite a prior reason
+on retry. This record supplies history without duplicating a current IsBanned flag.
+
+The readiness register selects DisplayName-only editing, internal suspension
+reasons and no timed suspension for the first slice. Reinstatement reasons and
+controlled recovery/ownership coordination remain scoped O16/O09/O10 choices.
+Do not infer a new SuspendUntil field or scheduled automatic reinstatement. Require
+current account eligibility plus explicit platform authority on Users list/detail/
+manage endpoints. Account suspension requires session revocation/invalidation and
+current-status enforcement. E11 selects no positive status cache and revocation of
+all target sessions in Identity's suspension transaction; already-authorized
+in-flight work may finish. Reinstatement requires new sign-in and never revives
+revoked sessions. See [consistency requirements](./integrity#global-account-suspension-and-reinstatement).
+Public global status writes remain backend-disabled until the readiness register's
+cross-service ownership-safety gate is resolved; fixtures test enforcement meanwhile.
+
+## SetupState and temporary Google proof
+
+The first owner/admin is confirmed to use an entered server-env setup secret and
+need not create/join a company. E05 selects a durable singleton SetupState in
+IdentityDbContext: Id (constant bounded string PK), Status Incomplete/Completed and
+Version Guid required; CompletedAt UTC? and InitialOwnerAccountId Guid? (local FK,
+Restrict). Completion fields are present iff Completed. A migration seeds only the
+incomplete marker, never an account, Google subject or secret.
+With this Restrict FK, retain the initial account as a closed/anonymized tombstone;
+first-slice account lifecycle does not physically purge it. Any later approved
+erasure mapping must preserve Completed and its audit, never reopen setup.
+
+Lock that row and atomically validate fresh unused PendingLogin, no accounts,
+incomplete setup, the entered environment secret and E12's validated same-identity
+MFA/authentication freshness before creating Account,
+its unique Google association, owner/admin grants, audit and Completed state.
+Normal registration is closed until completion and all account-creation paths obey
+the gate. The marker is not derived from user count and is never deleted/reset by
+account cleanup. Missing marker/configuration or inconsistent existing accounts
+fails closed. InitialOwnerAccountId is historical evidence, not permanent role
+authority; current operator grants determine access.
+
+PendingLogin is a five-minute server-only pre-account capability bound to the
+browser/OIDC flow, validated issuer/subject/email evidence and consumption state;
+it grants no permanent account/session/company authority. Its exact adapter storage
+uses the chosen auth integration, with expiry/one-time-use checks; never persist
+the entered bootstrap secret or reusable ID token as audit evidence. The selected
+[bootstrap protocol](../implementation/readiness#one-time-platform-bootstrap) defines
+concurrency, retries, permanent closure and controlled recovery separately.
 
 ## ExternalIdentity
 
@@ -77,9 +155,11 @@ no OTP, email-only login or differing-email fallback is selected.
 
 ## Provider-owned authentication records
 
-These are logical capabilities, not additional custom EF tables beside the chosen
-library's own authentication/session model. No LocalCredential, password signup or
-password-reset schema belongs to the current scope.
+Framework OIDC owns protocol/crypto/correlation records. E04 deliberately requires
+application-owned browser-container and AccountSession persistence for multiple
+accounts; ASP.NET's default single-principal cookie is not that session model.
+Map these capabilities once rather than duplicating library records. No
+LocalCredential, password signup or password-reset schema belongs to this scope.
 
 | Capability | Required logical information / constraints |
 | --- | --- |
@@ -97,13 +177,13 @@ Google login does not require keeping Google API access/refresh tokens.
 
 ## PlatformGrant
 
-**Proposed ownership:** the Identity/platform-access capability, separately from
-Organization's tenant RBAC. No deployed Identity service is implied.
+**Selected first-slice ownership E01:** the planned Identity service, separately
+from Organization tenant RBAC. No deployed service is implied.
 
 | Property | Proposed type / nullability | Purpose |
 | --- | --- | --- |
 | AccountId | Guid, required, local FK Account | Operator account |
-| CapabilityKey | required bounded string | Code-owned platform permission, e.g. company review; not tenant RoleId |
+| CapabilityKey | required bounded string | Code-owned platform permission, e.g. company review or Users read/manage/suspend/reinstate; exact keys/split open, not tenant RoleId |
 | GrantedByAccountId | Guid?, local FK Account | Granting operator; null only for separately controlled bootstrap with audit |
 | GrantedAt | UTC instant, required | Grant time |
 | RevokedAt / RevokedByAccountId | UTC instant? / Guid? | Revocation metadata; controlled bootstrap/recovery must remain auditable |
@@ -113,16 +193,28 @@ Proposed PK `(AccountId, CapabilityKey)` with lifecycle changes retained in audi
 index `(CapabilityKey, RevokedAt)` for operator/grant queries. Validate revocation
 chronology and actor evidence in the workflow. No CompanyId, tenant role inheritance,
 email-domain grant or seeded real operator is implied. Restrict destructive account
-FK cascades. Bootstrap, grant authority, MFA/step-up and emergency recovery remain O10.
+FK cascades. E05 selects bootstrap; E12 selects privileged-assurance defaults for
+owner review, while emergency recovery/rollout remains bounded O10 scope.
 A historical reviewer reference must survive later operator revocation without
 allowing that operator to make new decisions.
+E05 bootstrap permits the controlled null grantor only inside the one-time
+transaction, with bootstrap audit. Reserve `platform.owner` as an explicit protected
+platform assignment; it is not a tenant role or wildcard. Initial admin capabilities
+are explicit code-owned grants. E12 and the readiness owner-safety section select
+assurance/self-service safeguards; recovery never reopens setup.
+The first review slice includes an audited owner-authorized grant/revoke command
+for an existing registered account, with live capability/E12 assurance and local
+workflow locks. A different reviewer can receive platform access without tenant
+membership; that grant does not approve its own company application.
 
 ## Multiple accounts in one browser
 
 Several independent Worktandem account sessions may coexist. Each account has its
 own single Google identity and company memberships. Browser/session-container,
-cookie, active-tab and cross-app storage remain open O11 choices; do not invent a
-provider-independent session table in advance.
+cookie, active-tab and cross-app behavior now follows selected E04: a cookie-bound
+server container with independently revocable AccountSessions and per-tab selectors.
+Use the [session contract](../implementation/readiness#session-tab-and-request-isolation)
+rather than assuming a default single-user cookie supplies multi-account support.
 
 Resolve authenticated session/account and explicit company context per operation.
 A Google identity mismatch requires switching to its owning Worktandem account or

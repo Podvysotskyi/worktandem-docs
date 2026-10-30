@@ -18,14 +18,17 @@ This register separates architectural direction from delivered behavior.
 | Company onboarding | Confirmed direction, not implemented | New self-service registration includes company form; company Pending until manual platform approval |
 | Invitations | Confirmed direction, not implemented | Any recipient email; acceptance uses matching verified Google email; existing users see pending invites in app; no different-email OTP |
 | Platform administration | Confirmed direction, not implemented | Separate Nuxt operator app and explicit platform grants, distinct from company-admin roles |
+| Platform Users management | Confirmed direction, not implemented | Users list/detail/manage; global ban uses Account.Status = Suspended with mandatory nonempty reason and actor/time/transition history; company membership states stay independent; see [ADR-004](#adr-004-platform-users-and-independent-suspension-statuses) |
 | Accounts and memberships | Confirmed direction, not implemented | Many companies per account; at most one Google identity per account and exactly one usable Google login for an active Google-only account; each Google identity unique to one account; multiple signed-in Worktandem accounts with switching; see [ADR-003](#adr-003-one-google-identity-per-worktandem-account) |
 | Google replacement and future providers | Open | No second-Google linking or unrestricted unlink/relink; replacement/recovery and non-Google provider cardinality need separate decisions |
-| Multi-tab session context | Open | Isolated request context and stale-request guards required; tab strategy not selected |
+| Multi-tab session context | Selected engineering design, not implemented | E04/E11: cookie-owned server sessions, per-tab account/company selectors, scoped caches and live status checks; see [readiness](../implementation/readiness#session-tab-and-request-isolation) |
 | Company Google/domain integration | Confirmed optional direction, not implemented | Domain setup belongs to optional Google API integration; manual outside-domain invitations remain allowed |
 | Workspace directory sync and domain auto-join | Research proposals | Not adopted or implemented; neither grants authority implicitly |
 | EF Core code-first | Confirmed direction, not implemented | Migrations planned; see the [aligned logical catalog](../database/overview) and [review dispositions](../database/identity-alignment-review#documentation-dispositions) |
-| Relational entity model | Proposed, aligned with ADR-002/003 | [Service ownership and entity catalog](../database/overview); proposed fields/statuses are not approved defaults; provider, physical authentication schema and P01–P04/O choices remain open |
-| Persistence and messaging | Proposed | Evaluate PostgreSQL and RabbitMQ |
+| Relational entity model | Logical catalog with selected first-slice defaults; not implemented | [Entity catalog](../database/overview) and readiness E01–E11 select provider, boundaries and initial workflow/mapping defaults; detailed EF models and remaining scoped O choices require implementation review |
+| Persistence | Confirmed PostgreSQL + EF code-first; not implemented | E01/E02/E09 select separate Identity/Organization PG18 contexts, EF/Npgsql10 and mapping defaults; see readiness |
+| Platform initialization | Confirmed with selected safeguards; not implemented | Entered server-env secret + temporary validated Google proof creates first owner/admin once; no company required, no public first-signup takeover; see [ADR-005](#adr-005-postgresql-and-protected-initial-platform-owner) |
+| Messaging | Deferred candidate | RabbitMQ is not selected/required for the first vertical slice |
 | Real-time and background jobs | Proposed | Evaluate SignalR and Hangfire |
 | Documentation hosting | Open | No deployment or GitHub Pages publication configured |
 
@@ -134,6 +137,72 @@ resolve invitation mailbox-evidence policy O07 or the other proposed product def
 **Implementation:** Documentation only; no identity tables, EF migrations, app code
 or designs changed. See the [canonical specification](../product/identity-and-company-access)
 and [database alignment review](../database/identity-alignment-review).
+
+## ADR-004: Platform Users and independent suspension statuses
+
+**Date:** 2026-10-29. **Status:** confirmed product direction; not implemented.
+Extends platform administration with global user management. ADR-002/003 identity,
+onboarding, invitation and account/company switching rules remain unchanged.
+
+**Decision:** The separate platform-admin app provides Users list/detail/manage,
+including global ban. Ban sets Account.Status = Suspended and requires a nonempty
+reason/description. Retain authorized actor, time, before/after state and transition
+history. Account.Status is authoritative; do not add an independent IsBanned flag.
+
+Each CompanyMembership has an independent status. Global account suspension denies
+protected access across companies without overwriting those statuses or grants.
+Global reinstatement does not reactivate separately suspended/removed memberships,
+undo company suspension or recreate revoked tenant/platform grants. Company-admin
+roles do not grant global user-management rights.
+
+**Consequences:** The backend checks explicit operator authority and current account
+status. Suspension requires target-account session revocation/invalidation and
+current-status enforcement. Proposed storage/workflow uses Account.Version and an
+atomic status + transition-history update; keep membership state in Organization
+and independent from Identity's global status. Reinstatement evaluates current
+gates without restoring an old permissions/session snapshot.
+
+**Open:** Editable profile fields, exact capability keys, reason visibility, timed
+suspensions, reinstatement reason, minimal suspended-account surface, exact session
+revocation timing/implementation and self/last-operator/last-company-owner recovery.
+No automatic timed unban or unrestricted account-field editing is selected.
+
+**Implementation:** Documentation only. See [product rules](../product/identity-and-company-access#global-user-suspension-and-company-status),
+[proposed history](../database/identity#account-status-transition-history) and
+[consistency/tests](../database/integrity#global-account-suspension-and-reinstatement).
+No app, EF model, migration or design implementation is delivered.
+
+## ADR-005: PostgreSQL and protected initial platform owner
+
+**Date:** 2026-10-29. **Status:** user-confirmed requirements plus selected
+first-slice engineering decisions; no implementation or provisioning.
+
+**User decisions:** use PostgreSQL with EF code-first migrations. The first
+registered account becomes platform owner/admin and enters a secret stored in
+server environment configuration. That account need not create/join a company,
+though it may do so later. Existing Google-only/single-Google, multi-company,
+multi-account, approval, invitation and suspension rules remain in effect.
+
+**Engineering consequence:** E05 prevents public first-signup takeover: validate
+Google only into a temporary pre-account flow, disable normal registration before
+setup completes, and serialize a transaction over durable incomplete SetupState
+plus no accounts plus the entered secret. Create the first account/identity/grants
+and permanent completion atomically. Account/grant deletion never reopens setup;
+missing config/inconsistent state fails closed. No tenant membership, business
+access or self-approval follows from platform ownership.
+
+**Implementation decisions:** the [readiness register](../implementation/readiness)
+selects PG18/EF10/Npgsql10 and service-owned contexts, framework OIDC/server sessions,
+per-tab isolation, resumable cross-service registration, first-slice form/review
+defaults, contracts and tests. These are engineering selections under the
+preparation request, not separate historical user confirmations. ADR-004 user
+management is carried forward with explicit rollout gates; no real secrets are created.
+
+**Bounded owner review:** optional Google privileged-assurance settings/recovery
+before privileged rollout; cross-service owner-safety protocol before enabling
+public global status/removal writes; O07 current-mailbox evidence before invitation
+acceptance. These do not block isolated PR1 persistence/contract work. Directory
+sync, auto-join, mobile and more business modules remain deferred.
 
 ## Recording changes
 

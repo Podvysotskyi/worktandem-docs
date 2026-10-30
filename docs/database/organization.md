@@ -5,8 +5,9 @@ references below stay within the Organization database except AccountId, an Iden
 service reference. See [integrity rules](./integrity) for composite tenant FKs and
 [authorization](./authorization) for permission roles.
 The [product specification](../product/identity-and-company-access) controls confirmed
-behavior. P01–P04 form, review, owner-activation and invitation defaults remain
-proposals. The following fields and lifecycle names are logical modeling choices,
+behavior. E06/E07 in the [readiness register](../implementation/readiness) select
+first-slice form/review defaults; E08 invitations remain a later gated slice.
+The following detailed fields and later lifecycle transitions are logical modeling choices,
 not generated entities or migrations.
 
 ## Company
@@ -16,29 +17,37 @@ not generated entities or migrations.
 | Id | Guid, required, PK | Tenant/workspace ID |
 | Name | string, required, max 200 | Display name, not globally unique |
 | Slug | string, required, max 100 | Proposed stable normalized workspace locator |
-| Status | required enum | Proposed Pending, Approved, Rejected, Suspended, Archived; Pending/manual approval is confirmed, exact representation open |
+| Status | required enum | E07 selects single Pending/Approved/Rejected/Suspended/Archived vocabulary; Pending/manual approval is user-confirmed, later operational transitions remain scoped |
 | CurrentApplicationId | Guid? | Latest submitted application; tenant-consistent reference if stored |
+| CreatedByAccountId / CreationOperationId | Guid / Guid, required | External creator and stable creation operation; durable unique pair prevents duplicate initial companies after retry |
 | CreatedAt, UpdatedAt, Version | required | Lifecycle/concurrency |
 
 Unique normalized Slug proposed; identifiers/links must not rely on mutable display
 names. Company is the Worktandem tenant, **not a CRM customer organization**. Future
 customer records belong to their business service and have their own CompanyId.
 Archive first; no broad cascade delete of all tenant history.
+E06 uses unique (CreatedByAccountId, CreationOperationId) independently of short-lived
+HTTP idempotency storage. Normal registration receives its stable operation ID from
+Identity; the initial platform owner can request its optional company-creation
+operation later. Organization validates that actor/purpose/operation binding with
+Identity before creation; arbitrary client operation IDs cannot bypass initial
+uniqueness. Resume/lookup is authorized to that applicant, not by knowing an ID.
+No cross-service FK or distributed registration transaction is implied.
 
 Pending is a business-access gate, not an active membership or global account block.
 Proposed transitions: Pending → Approved/Rejected; Rejected → Pending on a versioned
 resubmission; Approved ↔ Suspended; Approved/Suspended → Archived under a reviewed
-retention policy. An alternative separate ReviewStatus + OperationalStatus model
-remains open O03; do not implement both representations without choosing consistency
-rules. Proposed owner activation happens only after approval, in the same owning
+retention policy. E07 selects one Company.Status for the first slice; separate
+review/operational axes are not selected in parallel. Owner activation happens only
+after approval, in the same owning
 transaction as the company/review decision. A platform UI status label is not enforcement.
 
 ## CompanyApplication and ReviewDecision
 
-Proposed **owner candidate = application's ApplicantAccountId**, not an Active
+Selected E07 **owner candidate = application's ApplicantAccountId**, not an Active
 membership with an Owner role. This keeps JoinedAt meaningful and avoids creating
-privileges before approval. A separately non-active candidate membership is an
-alternative requiring agreement under P03, not a second table to add by default.
+privileges before approval. A separately non-active candidate membership is not
+selected alongside this model; do not add a second candidate table by assumption.
 
 | Record | Required proposed fields | Optional proposed fields | Keys, indexes and lifecycle |
 | --- | --- | --- | --- |
@@ -46,8 +55,9 @@ alternative requiring agreement under P03, not a second table to add by default.
 | ReviewDecision | Id, CompanyId, ApplicationId, ReviewerAccountId Guid; ReviewedApplicationVersion Guid; Outcome Approved/Rejected; DecidedAt UTC; PlatformAuthorizationEvidenceRef bounded string; IdempotencyKey bounded string | ApplicantVisibleReason string?, InternalNote string? | PK Id; same-company application FK; unique (CompanyId, ApplicationId) for one terminal decision per submission; index (CompanyId, DecidedAt); Restrict deletion |
 
 All AccountId and authorization-evidence references above are external contracts,
-not SQL FKs. Field requirements/lengths in the form snapshot are P02 proposals,
-not confirmed mandatory registration fields. Keep reviewed submissions immutable;
+not SQL FKs. E06 selects form requirements/lengths as first-slice engineering
+defaults, not separately user-confirmed legal fields.
+Keep reviewed submissions immutable;
 edits/resubmission produce a new version/record under agreed O03 rules. If a draft
 form is persisted, model its incomplete fields separately from a submitted snapshot.
 
@@ -59,8 +69,8 @@ an assumption that the highest client-supplied number is authoritative. Advancin
 the current submission or changing review-relevant company state advances Company.Version.
 
 Proposed checks: SubmissionNumber > 0; reviewed version/outcome must agree with the
-submitted version; require a non-empty applicant-visible rejection reason if P03
-is adopted. Internal notes have separate authorization and are not returned to the
+submitted version; E07 requires a non-empty applicant-visible rejection reason.
+Internal notes have separate authorization and are not returned to the
 applicant. Authorize the current platform capability and match the immutable
 submission/version. Approval additionally requires, atomically with its effects,
 Company.Status = Pending, Company.CurrentApplicationId = the requested submission
@@ -70,8 +80,12 @@ A superseded submission cannot be approved merely because its own Version matche
 See the [approval transaction](./integrity#application-approval-transaction).
 Later grant revocation does not delete historical reviewer evidence.
 Scope/deduplicate idempotency by actor + operation + company + payload, not by a
-globally reusable client key alone. Review and outbox/audit persist with approval;
-network notification failure does not reverse an approval.
+globally reusable client key alone. Audit persists with approval; first-slice outcomes
+are shown through in-app status. Add notification outbox only for a selected actual
+delivery channel; network notification failure must not reverse an approval.
+An initial Identity account can exist without a committed company when Organization
+is unavailable: resume the company form/creation operation idempotently, with no
+business privileges. See the [resumable registration contract](../implementation/readiness#company-and-invitation-boundaries).
 
 ## CompanyMembership
 
@@ -80,7 +94,7 @@ network notification failure does not reverse an approval.
 | Id | Guid, required, PK | Stable company-member identity |
 | CompanyId | Guid, required, FK Company | Tenant |
 | AccountId | Guid, required, external reference | Worktandem account; no cross-service SQL FK |
-| Status | required enum | Proposed Active, Suspended, Left |
+| Status | required enum | Independent per-company membership state; Active/Suspended/Left names proposed, not a copy of Account.Status |
 | JobTitle | string?, max 200 | Company-specific title; not an access role |
 | JoinedAt | UTC instant, required | First activated membership, through approved owner activation or invitation acceptance |
 | EndedAt | UTC instant? | Current departure state |
@@ -100,6 +114,15 @@ An approved active company's last usable Owner needs transaction-safe protection
 a Pending company intentionally has only an applicant/candidate. Optional domain
 rules honor authorized manual invitation eligibility on later requests; membership
 suspension still denies regardless of eligibility or directory presence.
+
+**Confirmed global-versus-company separation:** platform ban sets Account.Status =
+Suspended and requires a reason/history in Identity. It does not overwrite this
+membership's state or revoke every role by mass update. Each company can retain
+its independent Active/Suspended/Left or separately agreed removal state. Global
+reinstatement re-evaluates these current states; it cannot unsuspend/rejoin a
+membership or recreate grants revoked independently. A company administrator's
+membership-management rights do not include global user banning. Company-level
+reason/history and removal/reinstatement policy remain separately reviewable.
 
 ## CompanyInvitation
 
@@ -141,7 +164,8 @@ identity's Worktandem account or start its own registration; never attach a seco
 Google identity or merge by email. O07 additional same-address mailbox evidence for
 non-Gmail/no-hd identities remains open; no OTP/proof policy is adopted here.
 
-**Proposed role offer:** P04's initial-role default remains open. If selected,
+**Later invitation default E08:** member role within current delegation authority;
+O07 gates acceptance before rollout. When implementing that slice,
 represent offered roles/scopes with explicit same-company invitation/role/target
 bindings equivalent to the [membership scope bindings](./authorization#scoped-role-assignments).
 Revalidate inviter delegation, current role/scope and accepting membership at commit;
